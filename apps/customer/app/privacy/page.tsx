@@ -1,3 +1,5 @@
+'use client';
+
 // apps/customer/app/privacy/page.tsx (create this file)
 export default function PrivacyPage() {
   return (
