@@ -71,7 +71,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center justify-center p-6">
       <div className="text-white text-center mb-8">
-        <h1 className="text-4xl font-bold mb-2">Kwik Oda</h1>
+        <h1 className="text-4xl font-bold mb-2">Kwikoda</h1>
         <p className="text-orange-100">Fast. Simple. Your Tab.</p>
       </div>
       

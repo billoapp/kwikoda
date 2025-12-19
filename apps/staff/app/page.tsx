@@ -53,6 +53,19 @@ export default function TabsPage() {
     return ordersTotal - paymentsTotal;
   };
 
+  // Helper function to get display name
+  const getDisplayName = (tab: any) => {
+    if (tab.notes) {
+      try {
+        const notes = JSON.parse(tab.notes);
+        return notes.display_name || `Tab ${tab.tab_number || 'Unknown'}`;
+      } catch (e) {
+        return `Tab ${tab.tab_number || 'Unknown'}`;
+      }
+    }
+    return `Tab ${tab.tab_number || 'Unknown'}`;
+  };
+
   const timeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -63,7 +76,9 @@ export default function TabsPage() {
   };
 
   const filteredTabs = tabs.filter(tab => {
-    const matchesSearch = tab.tab_number.toString().includes(searchQuery) || 
+    const displayName = getDisplayName(tab);
+    const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         tab.tab_number.toString().includes(searchQuery) || 
                          tab.owner_identifier?.includes(searchQuery);
     const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
     return matchesSearch && matchesFilter;
@@ -214,7 +229,7 @@ export default function TabsPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-xl font-bold text-gray-800">Tab #{tab.tab_number}</h3>
+                      <h3 className="text-xl font-bold text-gray-800">{getDisplayName(tab)}</h3>
                       {hasPendingOrders && (
                         <span className="flex items-center gap-1 bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
                           <AlertCircle size={12} />

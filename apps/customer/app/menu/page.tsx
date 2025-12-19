@@ -22,6 +22,7 @@ export default function MenuPage() {
   const router = useRouter();
   const [tab, setTab] = useState<any>(null);
   const [barName, setBarName] = useState('Loading...');
+  const [displayName, setDisplayName] = useState('');
   const [cart, setCart] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -66,6 +67,20 @@ export default function MenuPage() {
       if (tabError) throw tabError;
       setTab(fullTab);
       setBarName(fullTab.bar?.name || 'Bar');
+
+      // Extract display name from notes
+      let name = 'Your Tab';
+      if (fullTab.notes) {
+        try {
+          const notes = JSON.parse(fullTab.notes);
+          name = notes.display_name || `Tab ${fullTab.tab_number || ''}`;
+        } catch (e) {
+          name = `Tab ${fullTab.tab_number || ''}`;
+        }
+      } else if (fullTab.tab_number) {
+        name = `Tab ${fullTab.tab_number}`;
+      }
+      setDisplayName(name);
 
       const { data: ordersData, error: ordersError } = await supabase
         .from('tab_orders')
@@ -244,8 +259,8 @@ export default function MenuPage() {
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold">{barName}</h1>
-            <p className="text-sm text-orange-100">Tab #{tab.tab_number}</p>
+            <h1 className="text-lg font-bold">{displayName}</h1>
+            <p className="text-sm text-orange-100">{barName}</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>

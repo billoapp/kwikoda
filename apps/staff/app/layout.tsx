@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kwik Oda Staff - Bar Management',
+  title: 'Kwikoda Staff - Bar Management',
   description: 'Manage tabs, orders, and payments for your bar',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };

@@ -68,6 +68,19 @@ export default function ReportsPage() {
     return { totalTabs, totalOrders, totalPayments, totalOutstanding };
   };
 
+  // Helper function to get display name
+  const getDisplayName = (tab: any) => {
+    if (tab.notes) {
+      try {
+        const notes = JSON.parse(tab.notes);
+        return notes.display_name || `Tab ${tab.tab_number || 'Unknown'}`;
+      } catch (e) {
+        return `Tab ${tab.tab_number || 'Unknown'}`;
+      }
+    }
+    return `Tab ${tab.tab_number || 'Unknown'}`;
+  };
+
   const stats = calculateStats();
 
   const handlePrintDaily = () => {
@@ -238,7 +251,7 @@ export default function ReportsPage() {
                   
                   return `
                     <tr>
-                      <td class="text-center"><strong>#${tab.tab_number}</strong></td>
+                      <td class="text-center"><strong>${getDisplayName(tab)}</strong></td>
                       <td class="text-center">${tab.orders?.length || 0}</td>
                       <td class="text-right">KSh ${paymentTotal.toLocaleString()}</td>
                       <td class="text-right"><strong>KSh ${outstanding.toLocaleString()}</strong></td>

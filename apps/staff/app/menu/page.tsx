@@ -239,9 +239,9 @@ export default function MenuManagementPage() {
           </button>
         </div>
 
-        {/* Kwik Oda Catalog */}
+        {/* Kwikoda Catalog */}
         <div>
-          <h2 className="text-lg font-bold text-gray-800 mb-3">Kwik Oda Supplier Catalog</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-3">Kwikoda Supplier Catalog</h2>
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
             <p className="text-sm text-gray-700">
               <strong>✨ Professional Catalog:</strong> Pre-loaded products with verified SKUs and quality images. Set your own prices.

@@ -13,6 +13,7 @@ export default function TabDetailPage() {
   
   const [tab, setTab] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     loadTabData();
@@ -37,6 +38,18 @@ export default function TabDetailPage() {
 
       console.log('✅ Tab loaded:', tabData);
       setTab(tabData);
+
+      // Extract display name from notes
+      let name = `Tab ${tabData.tab_number || 'Unknown'}`;
+      if (tabData.notes) {
+        try {
+          const notes = JSON.parse(tabData.notes);
+          name = notes.display_name || name;
+        } catch (e) {
+          // Keep default name if notes parsing fails
+        }
+      }
+      setDisplayName(name);
 
     } catch (error) {
       console.error('❌ Error loading tab:', error);
@@ -212,7 +225,7 @@ export default function TabDetailPage() {
         
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-3xl font-bold mb-1">Tab #{tab.tab_number}</h1>
+            <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
             <p className="text-orange-100">{tab.bar?.name || 'Bar'}</p>
             <p className="text-sm text-orange-100 mt-1">Opened {timeAgo(tab.opened_at)}</p>
           </div>
