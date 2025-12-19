@@ -1,5 +1,5 @@
 // apps/customer/app/privacy/page.tsx (create this file)
-export function PrivacyPage() {
+export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm p-8">
@@ -64,4 +64,3 @@ export function PrivacyPage() {
   );
 }
 
-export default PrivacyPage;

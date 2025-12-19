@@ -1,5 +1,5 @@
 // apps/customer/app/terms/page.tsx
-export function TermsPage() {
+export default function TermsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm p-8">
@@ -45,4 +45,3 @@ export function TermsPage() {
   );
 }
 
-export default TermsPage;
