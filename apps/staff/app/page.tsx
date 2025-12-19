@@ -94,8 +94,8 @@ export default function TabsPage() {
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 pb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Kwik Oda Staff</h1>
-            <p className="text-orange-100 text-sm">The Spot Lounge</p>
+            <h1 className="text-2xl font-bold">The Spot Lounge Staff</h1>
+            <p className="text-orange-100 text-sm">Kwikoda Platform</p>
           </div>
           <div className="flex gap-2">
             <button 

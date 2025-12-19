@@ -1,69 +1,280 @@
+// apps/staff/app/reports/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Printer, Download, Sheet } from 'lucide-react';
+import { ArrowRight, Printer, Download, Sheet, X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function ReportsPage() {
   const router = useRouter();
   const [tabs, setTabs] = useState<any[]>([]);
+  const [barName, setBarName] = useState('The Spot Lounge');
+  const [loading, setLoading] = useState(true);
+  const [showProModal, setShowProModal] = useState(false);
+  const [proFeature, setProFeature] = useState('');
 
   useEffect(() => {
-    const tabsData = sessionStorage.getItem('tabs');
-    if (tabsData) {
-      setTabs(JSON.parse(tabsData));
-    }
+    loadData();
   }, []);
 
-  const getTabBalance = (tab: any) => {
-    const ordersTotal = tab.orders.reduce((sum: number, order: any) => sum + order.total, 0);
-    const paymentsTotal = tab.payments.reduce((sum: number, payment: any) => sum + payment.amount, 0);
-    return ordersTotal - paymentsTotal;
+  const loadData = async () => {
+    try {
+      // Get bar info
+      const { data: bars } = await supabase.from('bars').select('name').limit(1);
+      if (bars && bars.length > 0) {
+        setBarName(bars[0].name);
+      }
+
+      // Get tabs with orders and payments
+      const { data: tabsData, error } = await supabase
+        .from('tabs')
+        .select(`
+          *,
+          orders:tab_orders(*),
+          payments:tab_payments(*)
+        `)
+        .order('tab_number', { ascending: false });
+
+      if (error) throw error;
+      setTabs(tabsData || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const stats = {
-    totalTabs: tabs.length,
-    openTabs: tabs.filter((t: any) => t.status === 'open').length,
-    totalRevenue: tabs.reduce((sum: number, tab: any) => {
-      return sum + tab.orders.reduce((s: number, o: any) => s + parseFloat(o.total), 0);
-    }, 0),
-    outstandingBalance: tabs.filter((t: any) => t.status === 'open').reduce((sum: number, tab: any) => sum + getTabBalance(tab), 0)
+  const calculateStats = () => {
+    const totalTabs = tabs.length;
+    const totalOrders = tabs.reduce((sum, tab) => sum + (tab.orders?.length || 0), 0);
+    
+    const totalPayments = tabs.reduce((sum, tab) => {
+      return sum + (tab.payments || [])
+        .filter((p: any) => p.status === 'success')
+        .reduce((pSum: number, p: any) => pSum + parseFloat(p.amount), 0);
+    }, 0);
+    
+    const totalOutstanding = tabs.reduce((sum, tab) => {
+      const orderTotal = (tab.orders || [])
+        .filter((o: any) => o.status !== 'cancelled')
+        .reduce((oSum: number, o: any) => oSum + parseFloat(o.total), 0);
+      const paymentTotal = (tab.payments || [])
+        .filter((p: any) => p.status === 'success')
+        .reduce((pSum: number, p: any) => pSum + parseFloat(p.amount), 0);
+      return sum + (orderTotal - paymentTotal);
+    }, 0);
+
+    return { totalTabs, totalOrders, totalPayments, totalOutstanding };
   };
+
+  const stats = calculateStats();
 
   const handlePrintDaily = () => {
-    window.print();
+    const printContent = `
+      <html>
+        <head>
+          <title>Kwikoda Report - ${new Date().toLocaleDateString()}</title>
+          <style>
+            @page { size: A4 portrait; margin: 1.5cm; }
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 12px;
+              margin: 0;
+              padding: 20px;
+              line-height: 1.5;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #333;
+              padding-bottom: 15px;
+            }
+            .header h1 {
+              margin: 0 0 5px 0;
+              color: #333;
+              font-size: 28px;
+              font-weight: bold;
+            }
+            .header h2 {
+              margin: 5px 0;
+              color: #f97316;
+              font-size: 18px;
+              font-weight: normal;
+            }
+            .header p {
+              margin: 3px 0;
+              color: #666;
+              font-size: 11px;
+            }
+            .summary {
+              margin-bottom: 30px;
+              background: #f9fafb;
+              padding: 20px;
+              border-radius: 8px;
+              border: 1px solid #e5e7eb;
+            }
+            .summary h3 {
+              margin: 0 0 15px 0;
+              color: #333;
+              font-size: 16px;
+              border-bottom: 1px solid #d1d5db;
+              padding-bottom: 8px;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 15px;
+            }
+            .summary-item {
+              text-align: center;
+              padding: 10px;
+              background: white;
+              border-radius: 6px;
+            }
+            .summary-item .label {
+              color: #6b7280;
+              font-size: 11px;
+              display: block;
+              margin-bottom: 5px;
+              text-transform: uppercase;
+              font-weight: 600;
+            }
+            .summary-item .value {
+              font-size: 20px;
+              font-weight: bold;
+              color: #111827;
+            }
+            .summary-item .value.outstanding {
+              color: #f97316;
+            }
+            .details h3 {
+              margin: 20px 0 10px 0;
+              color: #333;
+              font-size: 16px;
+              border-bottom: 1px solid #d1d5db;
+              padding-bottom: 8px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+            }
+            th, td {
+              border: 1px solid #e5e7eb;
+              padding: 10px;
+              text-align: left;
+            }
+            th {
+              background-color: #f3f4f6;
+              font-weight: bold;
+              color: #374151;
+              font-size: 11px;
+              text-transform: uppercase;
+            }
+            td {
+              font-size: 12px;
+              color: #1f2937;
+            }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .page-break { page-break-before: always; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${barName}</h1>
+            <h2>Kwikoda Report</h2>
+            <p>Date: ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p>Generated: ${new Date().toLocaleString('en-GB')}</p>
+          </div>
+
+          <div class="summary">
+            <h3>Summary</h3>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <span class="label">Total Tabs</span>
+                <span class="value">${stats.totalTabs}</span>
+              </div>
+              <div class="summary-item">
+                <span class="label">Total Orders</span>
+                <span class="value">${stats.totalOrders}</span>
+              </div>
+              <div class="summary-item">
+                <span class="label">Total Payments</span>
+                <span class="value">KSh ${stats.totalPayments.toLocaleString()}</span>
+              </div>
+              <div class="summary-item">
+                <span class="label">Total Outstanding</span>
+                <span class="value outstanding">KSh ${stats.totalOutstanding.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details">
+            <h3>Details</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th class="text-center">Tab #</th>
+                  <th class="text-center">Orders</th>
+                  <th class="text-right">Payments</th>
+                  <th class="text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tabs.map((tab: any) => {
+                  const orderTotal = (tab.orders || [])
+                    .filter((o: any) => o.status !== 'cancelled')
+                    .reduce((sum: number, order: any) => sum + parseFloat(order.total), 0);
+                  const paymentTotal = (tab.payments || [])
+                    .filter((p: any) => p.status === 'success')
+                    .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0);
+                  const outstanding = orderTotal - paymentTotal;
+                  
+                  return `
+                    <tr>
+                      <td class="text-center"><strong>#${tab.tab_number}</strong></td>
+                      <td class="text-center">${tab.orders?.length || 0}</td>
+                      <td class="text-right">KSh ${paymentTotal.toLocaleString()}</td>
+                      <td class="text-right"><strong>KSh ${outstanding.toLocaleString()}</strong></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    }
   };
 
-  const handleExportCSV = () => {
-    const csvData = tabs.map(tab => {
-      const balance = getTabBalance(tab);
-      return {
-        tab_number: tab.number,
-        phone: tab.ownerPhone,
-        opened: new Date(tab.openedAt).toISOString(),
-        orders: tab.orders.length,
-        total_orders: tab.orders.reduce((sum: number, o: any) => sum + o.total, 0),
-        total_payments: tab.payments.reduce((sum: number, p: any) => sum + p.amount, 0),
-        balance: balance,
-        status: tab.status
-      };
-    });
-
-    const headers = Object.keys(csvData[0]).join(',');
-    const rows = csvData.map(row => Object.values(row).join(',')).join('\n');
-    const csv = `${headers}\n${rows}`;
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kwikoda-report-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+  const handleProFeature = (feature: string) => {
+    setProFeature(feature);
+    setShowProModal(true);
   };
 
-  const handleSyncSheets = () => {
-    alert('Syncing to Google Sheets... (Feature coming soon)\n\nThis will automatically push your daily data to a Google Sheet for easy tracking.');
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -83,7 +294,7 @@ export default function ReportsPage() {
         <div className="bg-white rounded-xl shadow-sm divide-y">
           <button 
             onClick={handlePrintDaily}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -98,8 +309,8 @@ export default function ReportsPage() {
           </button>
 
           <button 
-            onClick={handleExportCSV}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
+            onClick={() => handleProFeature('CSV Export')}
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 rounded-lg">
@@ -110,12 +321,14 @@ export default function ReportsPage() {
                 <p className="text-sm text-gray-500">Open in Excel or Google Sheets</p>
               </div>
             </div>
-            <ArrowRight size={20} className="text-gray-400" />
+            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+              Pro
+            </span>
           </button>
 
           <button 
-            onClick={handleSyncSheets}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
+            onClick={() => handleProFeature('Google Sheets Sync')}
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -141,17 +354,17 @@ export default function ReportsPage() {
               <span className="font-bold">{stats.totalTabs}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Open Tabs</span>
-              <span className="font-bold">{stats.openTabs}</span>
+              <span className="text-gray-600">Total Orders</span>
+              <span className="font-bold">{stats.totalOrders}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Total Revenue</span>
-              <span className="font-bold">KSh {stats.totalRevenue.toLocaleString()}</span>
+              <span className="text-gray-600">Total Payments</span>
+              <span className="font-bold text-green-600">KSh {stats.totalPayments.toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Outstanding Balance</span>
+              <span className="text-gray-600">Total Outstanding</span>
               <span className="font-bold text-orange-600">
-                KSh {stats.outstandingBalance.toLocaleString()}
+                KSh {stats.totalOutstanding.toLocaleString()}
               </span>
             </div>
           </div>
@@ -160,10 +373,72 @@ export default function ReportsPage() {
         {/* Info */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-sm text-gray-700">
-            <strong>📊 Pro Tip:</strong> Set up Google Sheets sync to automatically track your daily performance. Perfect for accountants and managers.
+            <strong>📊 Pro Tip:</strong> Upgrade to Pro to unlock CSV exports and automatic Google Sheets sync for seamless accounting.
           </p>
         </div>
       </div>
+
+      {/* Pro Feature Modal */}
+      {showProModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">✨</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
+                  <p className="text-sm text-gray-500">Unlock premium features</p>
+                </div>
+              </div>
+              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-gray-700 mb-3">
+                <strong>{proFeature}</strong> is a Pro feature that helps you:
+              </p>
+              <ul className="text-sm text-gray-600 space-y-2 ml-4">
+                {proFeature === 'CSV Export' ? (
+                  <>
+                    <li>• Export all data to Excel-compatible format</li>
+                    <li>• Share reports with accountants instantly</li>
+                    <li>• Analyze trends with pivot tables</li>
+                  </>
+                ) : (
+                  <>
+                    <li>• Automatically sync daily reports to Google Sheets</li>
+                    <li>• Real-time dashboard for managers</li>
+                    <li>• No manual data entry needed</li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowProModal(false)}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
+              >
+                Coming Soon
+              </button>
+              <button 
+                onClick={() => setShowProModal(false)}
+                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
+              >
+                Close
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              Join the waitlist • Be notified when Pro launches
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

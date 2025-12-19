@@ -1,8 +1,9 @@
+// apps/staff/app/menu/page.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Plus, Trash2, ShoppingCart } from 'lucide-react';
+import { ArrowRight, Plus, Trash2, ShoppingCart, Upload, Webhook, X } from 'lucide-react';
 
 const SUPPLIERS = [
   {
@@ -52,6 +53,8 @@ export default function MenuManagementPage() {
   const [addingPrice, setAddingPrice] = useState<any>({});
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [newCustomItem, setNewCustomItem] = useState({ name: '', category: 'Food', price: '' });
+  const [showProModal, setShowProModal] = useState(false);
+  const [proFeature, setProFeature] = useState({ title: '', description: '', benefits: [] as string[] });
 
   const handleAddFromCatalog = (product: any) => {
     const price = addingPrice[product.id];
@@ -100,6 +103,35 @@ export default function MenuManagementPage() {
     if (window.confirm('Delete this item?')) {
       setCustomItems(customItems.filter(item => item.id !== id));
     }
+  };
+
+  const handleProFeature = (feature: string) => {
+    if (feature === 'CSV Upload') {
+      setProFeature({
+        title: 'CSV Menu Upload',
+        description: 'Bulk upload your entire menu from a CSV file',
+        benefits: [
+          '• Upload hundreds of items instantly',
+          '• Update prices in bulk',
+          '• Import from existing POS systems',
+          '• Automatic duplicate detection',
+          '• Supports custom fields and categories'
+        ]
+      });
+    } else if (feature === 'Webhooks') {
+      setProFeature({
+        title: 'Webhook Integration',
+        description: 'Connect Kwikoda with your existing POS and systems',
+        benefits: [
+          '• Real-time order sync to your POS',
+          '• Automatic inventory updates',
+          '• Payment reconciliation',
+          '• Custom API endpoints',
+          '• Integration with Toast, Square, Clover, etc.'
+        ]
+      });
+    }
+    setShowProModal(true);
   };
 
   if (selectedSupplier) {
@@ -172,6 +204,41 @@ export default function MenuManagementPage() {
       </div>
 
       <div className="p-4 space-y-6">
+        {/* Pro Features Row */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => handleProFeature('CSV Upload')}
+            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-2 border-orange-200"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Upload size={20} className="text-orange-600" />
+              </div>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                Pro
+              </span>
+            </div>
+            <h3 className="font-semibold text-gray-800 text-sm text-left">Upload CSV</h3>
+            <p className="text-xs text-gray-500 text-left mt-1">Bulk import menu</p>
+          </button>
+
+          <button
+            onClick={() => handleProFeature('Webhooks')}
+            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-2 border-orange-200"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Webhook size={20} className="text-purple-600" />
+              </div>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                Pro
+              </span>
+            </div>
+            <h3 className="font-semibold text-gray-800 text-sm text-left">Integrations</h3>
+            <p className="text-xs text-gray-500 text-left mt-1">Connect your POS</p>
+          </button>
+        </div>
+
         {/* Kwik Oda Catalog */}
         <div>
           <h2 className="text-lg font-bold text-gray-800 mb-3">Kwik Oda Supplier Catalog</h2>
@@ -306,6 +373,61 @@ export default function MenuManagementPage() {
           )}
         </div>
       </div>
+
+      {/* Pro Feature Modal */}
+      {showProModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">✨</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
+                  <p className="text-sm text-gray-500">Unlock premium features</p>
+                </div>
+              </div>
+              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+              <p className="text-sm font-semibold text-gray-800 mb-2">
+                {proFeature.title}
+              </p>
+              <p className="text-sm text-gray-600 mb-3">
+                {proFeature.description}
+              </p>
+              <ul className="text-sm text-gray-700 space-y-1">
+                {proFeature.benefits.map((benefit, idx) => (
+                  <li key={idx}>{benefit}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowProModal(false)}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
+              >
+                Coming Soon
+              </button>
+              <button 
+                onClick={() => setShowProModal(false)}
+                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
+              >
+                Close
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              Join the waitlist • Be notified when Pro launches
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
