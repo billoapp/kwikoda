@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const MOCK_MENU = [
@@ -33,6 +33,7 @@ export default function MenuPage() {
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [menuCollapsed, setMenuCollapsed] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
@@ -281,32 +282,45 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div ref={menuRef} className="bg-white p-4">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Menu</h2>
-        <div className="relative mb-3">
-          <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search drinks..." className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none" />
+      <div ref={menuRef} className="bg-white border-b-2 border-gray-200">
+        <div 
+          className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+          onClick={() => setMenuCollapsed(!menuCollapsed)}
+        >
+          <h2 className="text-2xl font-bold text-gray-800">Menu</h2>
+          <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            {menuCollapsed ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
+          </button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar mb-4">
-          {categories.map(cat => (
-            <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === cat ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}>{cat}</button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-3 mb-20">
-          {filteredMenu.map(item => (
-            <div key={item.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
-              <div className="text-center mb-2">
-                <div className="text-5xl mb-2">{item.image}</div>
-                <h3 className="font-semibold text-gray-800 text-sm mb-1">{item.name}</h3>
-                <p className="text-orange-600 font-bold text-lg">KSh {item.price}</p>
-              </div>
-              <button onClick={() => addToCart(item)} className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1">
-                <Plus size={18} />
-                <span className="text-sm font-medium">Add</span>
-              </button>
+        
+        {!menuCollapsed && (
+          <div className="px-4 pb-4 max-h-[60vh] overflow-y-auto">
+            <div className="relative mb-3">
+              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search drinks..." className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none" />
             </div>
-          ))}
-        </div>
+            <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar mb-4">
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === cat ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}>{cat}</button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-20">
+              {filteredMenu.map(item => (
+                <div key={item.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
+                  <div className="text-center mb-2">
+                    <div className="text-5xl mb-2">{item.image}</div>
+                    <h3 className="font-semibold text-gray-800 text-sm mb-1">{item.name}</h3>
+                    <p className="text-orange-600 font-bold text-lg">KSh {item.price}</p>
+                  </div>
+                  <button onClick={() => addToCart(item)} className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1">
+                    <Plus size={18} />
+                    <span className="text-sm font-medium">Add</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div ref={ordersRef} className="bg-gray-50 p-4 min-h-screen">
