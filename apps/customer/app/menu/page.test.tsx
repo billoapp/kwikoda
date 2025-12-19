@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 export default function MenuPage() {
   const router = useRouter();
   const [tab, setTab] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('Your Tab');
   const [barName, setBarName] = useState('Loading...');
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -34,11 +33,7 @@ export default function MenuPage() {
     const interval = setInterval(loadTabData, 5000);
     const cartData = sessionStorage.getItem('cart');
     if (cartData) {
-      try {
-        setCart(JSON.parse(cartData));
-      } catch (e) {
-        sessionStorage.removeItem('cart');
-      }
+      setCart(JSON.parse(cartData));
     }
     return () => clearInterval(interval);
   }, []);
@@ -65,37 +60,16 @@ export default function MenuPage() {
       return;
     }
 
-    let currentTab;
-    try {
-      currentTab = JSON.parse(tabData);
-      if (!currentTab?.id) {
-        throw new Error('Invalid tab data');
-      }
-    } catch (error) {
-      console.error('Invalid session data:', error);
-      sessionStorage.removeItem('currentTab');
-      sessionStorage.removeItem('cart');
-      router.push('/');
-      return;
-    }
-
+    const currentTab = JSON.parse(tabData);
+    
     try {
       const { data: fullTab, error: tabError } = await supabase
         .from('tabs')
         .select('*, bar:bars(id, name, location)')
         .eq('id', currentTab.id)
-        .maybeSingle();
+        .single();
 
       if (tabError) throw tabError;
-
-      // Handle case where tab doesn't exist or RLS blocks access
-      if (!fullTab) {
-        sessionStorage.removeItem('currentTab');
-        sessionStorage.removeItem('cart');
-        router.replace('/');
-        return;
-      }
-
       setTab(fullTab);
       setBarName(fullTab.bar?.name || 'Bar');
 
@@ -144,9 +118,6 @@ export default function MenuPage() {
       if (!paymentsError) setPayments(paymentsData || []);
     } catch (error) {
       console.error('Error loading tab:', error);
-      // Don't redirect on network errors, just show error state
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -306,31 +277,10 @@ export default function MenuPage() {
 
   const progress = ((300 - timeRemaining) / 300) * 100;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your tab...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!tab) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center p-8 max-w-md">
-          <div className="text-5xl mb-4">🔍</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Tab Not Found</h2>
-          <p className="text-gray-600 mb-6">This tab may have been closed, expired, or is no longer accessible.</p>
-          <button
-            onClick={() => router.push('/')}
-            className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600"
-          >
-            Start New Tab
-          </button>
-        </div>
+        <p className="text-gray-500">Loading...</p>
       </div>
     );
   }
@@ -673,6 +623,6 @@ export default function MenuPage() {
             animation: pulse-number 2s ease-in-out infinite;
             }
         `}</style>
-      </div>
-  );
+        </div>
+        );
 }

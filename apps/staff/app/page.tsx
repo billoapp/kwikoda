@@ -2,11 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, DollarSign, Bell, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/useAuth';
 
 export default function TabsPage() {
   const router = useRouter();
+  const { user, bar, loading: authLoading, signOut } = useAuth();
+  
   const [tabs, setTabs] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -14,16 +17,17 @@ export default function TabsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadTabs();
-    
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(loadTabs, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    if (bar) {
+      loadTabs();
+      const interval = setInterval(loadTabs, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [bar]);
 
   const loadTabs = async () => {
+    if (!bar) return;
+    
     try {
-      // Fetch all tabs with their orders and payments
       const { data: tabsData, error } = await supabase
         .from('tabs')
         .select(`
@@ -32,6 +36,7 @@ export default function TabsPage() {
           orders:tab_orders(id, total, status, created_at),
           payments:tab_payments(id, amount, status, created_at)
         `)
+        .eq('bar_id', bar.id)
         .order('tab_number', { ascending: false });
 
       if (error) throw error;
@@ -45,15 +50,6 @@ export default function TabsPage() {
     }
   };
 
-  const getTabBalance = (tab: any) => {
-    const ordersTotal = tab.orders?.reduce((sum: number, order: any) => 
-      sum + parseFloat(order.total), 0) || 0;
-    const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
-      .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
-    return ordersTotal - paymentsTotal;
-  };
-
-  // Helper function to get display name
   const getDisplayName = (tab: any) => {
     if (tab.notes) {
       try {
@@ -64,6 +60,14 @@ export default function TabsPage() {
       }
     }
     return `Tab ${tab.tab_number || 'Unknown'}`;
+  };
+
+  const getTabBalance = (tab: any) => {
+    const ordersTotal = tab.orders?.reduce((sum: number, order: any) => 
+      sum + parseFloat(order.total), 0) || 0;
+    const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
+      .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
+    return ordersTotal - paymentsTotal;
   };
 
   const timeAgo = (dateStr: string) => {
@@ -78,7 +82,7 @@ export default function TabsPage() {
   const filteredTabs = tabs.filter(tab => {
     const displayName = getDisplayName(tab);
     const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         tab.tab_number.toString().includes(searchQuery) || 
+                         tab.tab_number?.toString().includes(searchQuery) || 
                          tab.owner_identifier?.includes(searchQuery);
     const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
     return matchesSearch && matchesFilter;
@@ -91,6 +95,17 @@ export default function TabsPage() {
     pendingOrders: tabs.reduce((sum, tab) => 
       sum + (tab.orders?.filter((o: any) => o.status === 'pending').length || 0), 0),
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw size={48} className="mx-auto mb-3 text-orange-500 animate-spin" />
+          <p className="text-gray-500">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -105,12 +120,11 @@ export default function TabsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 pb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">The Spot Lounge Staff</h1>
-            <p className="text-orange-100 text-sm">Kwikoda Platform</p>
+            <h1 className="text-2xl font-bold">{bar?.name || 'Bar'} Staff</h1>
+            <p className="text-orange-100 text-sm">{user?.email}</p>
           </div>
           <div className="flex gap-2">
             <button 
@@ -128,7 +142,6 @@ export default function TabsPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -147,7 +160,6 @@ export default function TabsPage() {
         </div>
       </div>
 
-      {/* Side Menu */}
       {showMenu && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-30" onClick={() => setShowMenu(false)}>
           <div className="absolute right-0 top-0 h-full w-64 bg-white shadow-xl p-6" onClick={e => e.stopPropagation()}>
@@ -171,12 +183,16 @@ export default function TabsPage() {
                 <Menu size={20} />
                 Settings
               </button>
+              <hr className="my-4" />
+              <button onClick={signOut} className="flex items-center gap-3 w-full text-left py-2 font-medium text-red-600">
+                <LogOut size={20} />
+                Sign Out
+              </button>
             </nav>
           </div>
         </div>
       )}
 
-      {/* Search & Filter */}
       <div className="p-4 bg-white border-b sticky top-0 z-10">
         <div className="flex gap-2 mb-3">
           <div className="relative flex-1">
@@ -185,7 +201,7 @@ export default function TabsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tab number..."
+              placeholder="Search tab name or number..."
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
             />
           </div>
@@ -208,7 +224,6 @@ export default function TabsPage() {
         </div>
       </div>
 
-      {/* Tabs List */}
       <div className="p-4 space-y-3 pb-24">
         {filteredTabs.length === 0 ? (
           <div className="text-center py-12">
