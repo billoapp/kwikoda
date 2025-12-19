@@ -1,0 +1,19 @@
+{
+  "name": "kwikoda",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/customer",
+    "apps/staff"
+  ],
+  "scripts": {
+    "dev:customer": "npm run dev --workspace=apps/customer",
+    "dev:staff": "npm run dev --workspace=apps/staff",
+    "build:customer": "npm run build --workspace=apps/customer",
+    "build:staff": "npm run build --workspace=apps/staff"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.88.0",
+    "@vercel/node": "^5.5.15"
+  }
+}

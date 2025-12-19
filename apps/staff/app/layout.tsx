@@ -1,0 +1,25 @@
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Kwik Oda Staff - Bar Management',
+  description: 'Manage tabs, orders, and payments for your bar',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+      </head>
+      <body className="font-sans antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}
