@@ -1,14 +1,15 @@
-// apps/staff/app/settings/page.tsx
+// apps/staff/app/settings/page.tsx - WITH BAR ID SUPPORT
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, CreditCard, Users, Download, QrCode, Save, X, Webhook, Upload, MessageSquare } from 'lucide-react';
+import { ArrowRight, Store, Bell, CreditCard, Users, Download, QrCode, Save, X, Webhook, MessageSquare, Copy, Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function SettingsPage() {
   const router = useRouter();
   const [barInfo, setBarInfo] = useState({
+    id: '',
     name: '',
     location: '',
     city: '',
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
   
   const [notifications, setNotifications] = useState({
     newOrders: true,
@@ -49,10 +51,12 @@ export default function SettingsPage() {
       if (error) throw error;
 
       if (data) {
+        const locationParts = data.location ? data.location.split(',') : ['', ''];
         const info = {
+          id: data.id,
           name: data.name || '',
-          location: data.location || '',
-          city: data.location?.split(',')[1]?.trim() || '',
+          location: locationParts[0]?.trim() || '',
+          city: locationParts[1]?.trim() || '',
           phone: data.phone || '',
           email: data.email || ''
         };
@@ -72,11 +76,15 @@ export default function SettingsPage() {
       const { data: bars } = await supabase.from('bars').select('id').limit(1);
       
       if (bars && bars.length > 0) {
+        const fullLocation = barInfo.city 
+          ? `${barInfo.location}, ${barInfo.city}`
+          : barInfo.location;
+
         const { error } = await supabase
           .from('bars')
           .update({
             name: barInfo.name,
-            location: `${barInfo.location}, ${barInfo.city}`,
+            location: fullLocation,
             phone: barInfo.phone,
             email: barInfo.email
           })
@@ -84,8 +92,7 @@ export default function SettingsPage() {
 
         if (error) throw error;
 
-        setOriginalBarInfo(barInfo);
-        setHasChanges(false);
+        await loadBarInfo();
         alert('✅ Restaurant information updated successfully!');
       }
     } catch (error) {
@@ -116,25 +123,60 @@ export default function SettingsPage() {
     setShowProModal(true);
   };
 
-  const handleDownloadQR = () => {
-    // Create download link for QR code pointing to your actual domain
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=https://mteja.vercel.app&bgcolor=ffffff&color=f97316&qzone=2&format=png`;
-    
-    const link = document.createElement('a');
-    link.href = qrUrl;
-    link.download = `${barInfo.name || 'kwikoda'}-qr-code.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // UPDATED: Changed from direct /start URL to main app URL
+  const handleCopyQRUrl = () => {
+    if (barInfo.id) {
+      const url = `https://mteja.vercel.app?bar_id=${barInfo.id}`;
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // UPDATED: Changed from direct /start URL to main app URL
+  const handleDownloadQR = async () => {
+    try {
+      const { data: bars } = await supabase.from('bars').select('id, name').limit(1);
+      
+      if (!bars || bars.length === 0) {
+        alert('No bar found in database. Please save bar information first.');
+        return;
+      }
+
+      const bar = bars[0];
+      const qrData = `https://mteja.vercel.app?bar_id=${bar.id}`;
+      
+      console.log('🔍 Generating QR code with bar ID:', bar.id);
+      
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png`;
+      
+      const link = document.createElement('a');
+      link.href = qrUrl;
+      link.download = `${bar.name.replace(/\s+/g, '-').toLowerCase()}-order-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      alert(`✅ QR code downloaded!\n\nURL: ${qrData}\n\nCustomers will scan this QR and be taken to the app, then redirected to start ordering.`);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      alert('Failed to generate QR code. Please try again.');
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading settings...</p>
+        </div>
       </div>
     );
   }
+
+  // UPDATED: Changed from direct /start URL to main app URL
+  const qrUrl = barInfo.id ? `https://mteja.vercel.app?bar_id=${barInfo.id}` : '';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -172,10 +214,13 @@ export default function SettingsPage() {
                 placeholder="The Spot Lounge"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                This name appears when customers scan your QR code
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location/Address</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location/Area</label>
               <input
                 type="text"
                 value={barInfo.location}
@@ -219,14 +264,12 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Banner Image</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 transition cursor-pointer">
-                <Upload size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600 mb-1">Click to upload banner image</p>
-                <p className="text-xs text-gray-500">Recommended: 1200x400px, JPG or PNG</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID</label>
+              <div className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50">
+                <code className="text-sm text-gray-600 break-all">{barInfo.id || 'No bar ID found. Save first.'}</code>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                💡 Use this for your start page or when sharing your restaurant on social media
+              <p className="text-xs text-gray-500 mt-1">
+                💡 This ID is included in your QR code. Customers will see "{barInfo.name}" when they scan.
               </p>
             </div>
 
@@ -255,14 +298,15 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* QR Code Image - Large Block Style */}
+          {/* QR Code Image */}
           <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
             <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
               <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
-                {/* Using QR code generator with your actual domain */}
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://mteja.vercel.app&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
-                  alt="Restaurant QR Code"
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+                    qrUrl || 'https://mteja.vercel.app'
+                  )}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
+                  alt={`Order at ${barInfo.name} QR Code`}
                   className="w-full h-full"
                 />
               </div>
@@ -273,10 +317,37 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* QR Code URL with Copy Button */}
+          {barInfo.id && (
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-gray-500">QR Code URL:</p>
+                <button
+                  onClick={handleCopyQRUrl}
+                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <code className="text-sm text-gray-800 break-all">
+                {qrUrl}
+              </code>
+              <p className="text-xs text-gray-500 mt-1">
+                This URL will redirect to the start page with your bar ID
+              </p>
+            </div>
+          )}
+
           {/* Download Button */}
           <button
             onClick={handleDownloadQR}
-            className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
+            disabled={!barInfo.id}
+            className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
+              barInfo.id 
+                ? 'bg-orange-500 text-white hover:bg-orange-600' 
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
           >
             <Download size={20} />
             Download QR Code
@@ -284,6 +355,9 @@ export default function SettingsPage() {
           
           <p className="text-xs text-gray-500 text-center mt-3">
             💡 Print and display at tables, bar counter, or entrance
+          </p>
+          <p className="text-xs text-orange-600 text-center mt-1">
+            Customers will see "{barInfo.name}" when they scan
           </p>
         </div>
 

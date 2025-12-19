@@ -1,11 +1,23 @@
+// app/page.tsx
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  useEffect(() => {
+    // Check if there's a bar_id in the URL
+    const barId = searchParams.get('bar_id');
+    
+    if (barId) {
+      // If bar_id exists, redirect to start page with the bar_id
+      router.push(`/start?bar_id=${barId}`);
+    }
+  }, [searchParams, router]);
 
   const benefits = [
     {
