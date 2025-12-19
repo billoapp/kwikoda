@@ -34,21 +34,12 @@ export default function LandingPage() {
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center justify-center p-6">
       {/* Header */}
       <div className="text-white text-center mb-12">
-        <h1 className="text-5xl font-bold mb-3">Kwik Oda</h1>
-        <p className="text-xl text-orange-100">Fast. Simple. Your Tab.</p>
+        <h1 className="text-5xl font-bold mb-3">Kwikoda</h1>
+        <p className="text-xl text-orange-100">Order smarter, not harder</p>
       </div>
       
       {/* Main Card */}
       <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full">
-        {/* Icon */}
-        <div className="text-center mb-8">
-          <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-100 to-red-100 rounded-3xl flex items-center justify-center mb-4">
-            <div className="text-5xl">🍺</div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome!</h2>
-          <p className="text-gray-600">Order smarter, not harder</p>
-        </div>
-
         {/* Benefits Grid */}
         <div className="space-y-4 mb-8">
           {benefits.map((benefit, index) => (
