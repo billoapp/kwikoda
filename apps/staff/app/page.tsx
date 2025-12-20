@@ -16,6 +16,16 @@ export default function TabsPage() {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Debug: Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
+      console.log('👤 User email:', user?.email);
+    };
+    checkAuth();
+  }, []);
+
   useEffect(() => {
     if (bar) {
       loadTabs();
@@ -28,6 +38,8 @@ export default function TabsPage() {
     if (!bar) return;
     
     try {
+      console.log('🔍 Loading tabs for bar_id:', bar.id);
+      
       const { data: tabsData, error } = await supabase
         .from('tabs')
         .select(`
@@ -41,7 +53,7 @@ export default function TabsPage() {
 
       if (error) throw error;
 
-      console.log('✅ Tabs loaded:', tabsData);
+      console.log('✅ Tabs loaded:', tabsData?.length || 0, 'tabs for bar:', bar.name);
       setTabs(tabsData || []);
     } catch (error) {
       console.error('Error loading tabs:', error);

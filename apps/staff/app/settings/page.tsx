@@ -1,4 +1,4 @@
-// apps/staff/app/settings/page.tsx - FIXED: Check both 'active' and 'is_active' fields
+// apps/staff/app/settings/page.tsx - FIXED: Properly filter by authenticated user's bar_id
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -32,6 +32,16 @@ export default function SettingsPage() {
   const [showProModal, setShowProModal] = useState(false);
   const [proFeature, setProFeature] = useState({ title: '', description: '' });
 
+  // Debug: Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
+      console.log('👤 User email:', user?.email);
+    };
+    checkAuth();
+  }, []);
+
   useEffect(() => {
     loadBarInfo();
   }, []);
@@ -43,50 +53,60 @@ export default function SettingsPage() {
 
   const loadBarInfo = async () => {
     try {
-      // Get current user's bar_id from their session
+      // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
+        console.error('❌ No authenticated user');
         router.push('/login');
         return;
       }
 
-      const barId = user.user_metadata?.bar_id;
+      const userBarId = user.user_metadata?.bar_id;
       
-      if (!barId) {
-        alert('No bar associated with your account');
+      if (!userBarId) {
+        console.error('❌ No bar_id in user metadata');
+        alert('Your account is not linked to a bar. Please contact support.');
         router.push('/login');
         return;
       }
 
-      console.log('🔍 Loading bar for user bar_id:', barId);
+      console.log('🔍 Loading bar for authenticated user, bar_id:', userBarId);
 
-      // Get ONLY this user's bar (not all bars!)
+      // Get THIS user's bar ONLY
       const { data, error } = await supabase
         .from('bars')
         .select('*')
-        .eq('id', barId)
+        .eq('id', userBarId)
         .single();
 
-      if (error) throw error;
-
-      if (data) {
-        const locationParts = data.location ? data.location.split(',') : ['', ''];
-        const info = {
-          id: data.id,
-          name: data.name || '',
-          location: locationParts[0]?.trim() || '',
-          city: locationParts[1]?.trim() || '',
-          phone: data.phone || '',
-          email: data.email || '',
-          slug: data.slug || ''
-        };
-        setBarInfo(info);
-        setOriginalBarInfo(info);
-        console.log('✅ Loaded bar:', info.name, 'Slug:', info.slug);
+      if (error) {
+        console.error('❌ Error loading bar:', error);
+        throw error;
       }
+
+      if (!data) {
+        alert('Bar not found. Please contact support.');
+        router.push('/login');
+        return;
+      }
+
+      const locationParts = data.location ? data.location.split(',') : ['', ''];
+      const info = {
+        id: data.id,
+        name: data.name || '',
+        location: locationParts[0]?.trim() || '',
+        city: locationParts[1]?.trim() || '',
+        phone: data.phone || '',
+        email: data.email || '',
+        slug: data.slug || ''
+      };
+      setBarInfo(info);
+      setOriginalBarInfo(info);
+      console.log('✅ Loaded bar:', info.name, 'for user bar_id:', userBarId);
     } catch (error) {
       console.error('Error loading bar info:', error);
+      alert('Failed to load bar information');
     } finally {
       setLoading(false);
     }
@@ -95,30 +115,38 @@ export default function SettingsPage() {
   const handleSaveBarInfo = async () => {
     setSaving(true);
     try {
-      const { data: bars } = await supabase.from('bars').select('id').limit(1);
+      // Get authenticated user's bar_id
+      const { data: { user } } = await supabase.auth.getUser();
       
-      if (bars && bars.length > 0) {
-        const fullLocation = barInfo.city 
-          ? `${barInfo.location}, ${barInfo.city}`
-          : barInfo.location;
-
-        // Update bar information and ensure it's active
-        const { error } = await supabase
-          .from('bars')
-          .update({
-            name: barInfo.name,
-            location: fullLocation,
-            phone: barInfo.phone,
-            email: barInfo.email,
-            active: true
-          })
-          .eq('id', bars[0].id);
-
-        if (error) throw error;
-
-        await loadBarInfo();
-        alert('✅ Restaurant information updated successfully!');
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
       }
+
+      const userBarId = user.user_metadata.bar_id;
+      const fullLocation = barInfo.city 
+        ? `${barInfo.location}, ${barInfo.city}`
+        : barInfo.location;
+
+      console.log('💾 Saving bar info for bar_id:', userBarId);
+
+      // Update ONLY this user's bar
+      const { error } = await supabase
+        .from('bars')
+        .update({
+          name: barInfo.name,
+          location: fullLocation,
+          phone: barInfo.phone,
+          email: barInfo.email,
+          active: true
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      await loadBarInfo();
+      alert('✅ Restaurant information updated successfully!');
     } catch (error) {
       console.error('Error saving:', error);
       alert('Failed to save changes. Please try again.');
@@ -159,34 +187,17 @@ export default function SettingsPage() {
 
   const handleDownloadQR = async () => {
     try {
-      const { data: bars } = await supabase.from('bars').select('id, name, slug, active').limit(1);
-      
-      if (!bars || bars.length === 0) {
-        alert('No bar found in database. Please save bar information first.');
+      if (!barInfo.id || !barInfo.slug) {
+        alert('Bar information not loaded. Please refresh the page.');
         return;
       }
 
-      const bar = bars[0];
+      const qrData = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
       
-      if (!bar.slug) {
-        alert('⚠️ No slug found for your bar. Please contact support.');
-        return;
-      }
-      
-      // Check if bar is active
-      const isActive = bar.active !== false;
-      
-      if (!isActive) {
-        alert('⚠️ Warning: Your bar is not marked as active. Please save your settings to activate it.');
-      }
-
-      const qrData = `https://mteja.vercel.app/?bar=${bar.slug}`;
-      
-      console.log('🔍 Generating QR code:', {
-        barId: bar.id,
-        barName: bar.name,
-        barSlug: bar.slug,
-        isActive: isActive,
+      console.log('📱 Generating QR code:', {
+        barId: barInfo.id,
+        barName: barInfo.name,
+        barSlug: barInfo.slug,
         url: qrData
       });
       
@@ -194,12 +205,12 @@ export default function SettingsPage() {
       
       const link = document.createElement('a');
       link.href = qrUrl;
-      link.download = `${bar.slug}-qr-code.png`;
+      link.download = `${barInfo.slug}-qr-code.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      alert(`✅ QR code downloaded!\n\nBar: ${bar.name}\nSlug: ${bar.slug}\nURL: ${qrData}\n\nTest the QR code by scanning it with your phone.`);
+      alert(`✅ QR code downloaded!\n\nBar: ${barInfo.name}\nSlug: ${barInfo.slug}\nURL: ${qrData}\n\nTest the QR code by scanning it with your phone.`);
     } catch (error) {
       console.error('Error generating QR code:', error);
       alert('Failed to generate QR code. Please try again.');

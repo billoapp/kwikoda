@@ -1,4 +1,4 @@
-// apps/staff/app/reports/page.tsx
+// apps/staff/app/reports/page.tsx - FIXED: Properly filter by authenticated user's bar_id
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,10 +9,20 @@ import { supabase } from '@/lib/supabase';
 export default function ReportsPage() {
   const router = useRouter();
   const [tabs, setTabs] = useState<any[]>([]);
-  const [barName, setBarName] = useState('The Spot Lounge');
+  const [barName, setBarName] = useState('');
   const [loading, setLoading] = useState(true);
   const [showProModal, setShowProModal] = useState(false);
   const [proFeature, setProFeature] = useState('');
+
+  // Debug: Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
+      console.log('👤 User email:', user?.email);
+    };
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -20,26 +30,58 @@ export default function ReportsPage() {
 
   const loadData = async () => {
     try {
-      // Get bar info
-      const { data: bars } = await supabase.from('bars').select('name').limit(1);
-      if (bars && bars.length > 0) {
-        setBarName(bars[0].name);
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.error('❌ No authenticated user');
+        router.push('/login');
+        return;
       }
 
-      // Get tabs with orders and payments
-      const { data: tabsData, error } = await supabase
+      const userBarId = user.user_metadata?.bar_id;
+      
+      if (!userBarId) {
+        console.error('❌ No bar_id in user metadata');
+        alert('Your account is not linked to a bar.');
+        router.push('/login');
+        return;
+      }
+
+      console.log('🔍 Loading data for bar_id:', userBarId);
+
+      // Get THIS user's bar name
+      const { data: barData, error: barError } = await supabase
+        .from('bars')
+        .select('name')
+        .eq('id', userBarId)
+        .single();
+      
+      if (barError) throw barError;
+      
+      if (barData) {
+        setBarName(barData.name);
+        console.log('✅ Loaded bar name:', barData.name);
+      }
+
+      // Get tabs for THIS bar only
+      const { data: tabsData, error: tabsError } = await supabase
         .from('tabs')
         .select(`
           *,
           orders:tab_orders(*),
           payments:tab_payments(*)
         `)
+        .eq('bar_id', userBarId)
         .order('tab_number', { ascending: false });
 
-      if (error) throw error;
+      if (tabsError) throw tabsError;
+
       setTabs(tabsData || []);
+      console.log('✅ Loaded', tabsData?.length || 0, 'tabs for bar:', userBarId);
     } catch (error) {
       console.error('Error loading data:', error);
+      alert('Failed to load report data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -200,7 +242,7 @@ export default function ReportsPage() {
         </head>
         <body>
           <div class="header">
-            <h1>${barName}</h1>
+            <h1>${barName || 'Restaurant'}</h1>
             <h2>Kwikoda Report</h2>
             <p>Date: ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             <p>Generated: ${new Date().toLocaleString('en-GB')}</p>
@@ -284,7 +326,10 @@ export default function ReportsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading reports...</p>
+        </div>
       </div>
     );
   }

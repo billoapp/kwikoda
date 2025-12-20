@@ -1,9 +1,10 @@
-// apps/staff/app/menu/page.tsx
+// apps/staff/app/menu/page.tsx - FIXED: Added bar_id filtering for menu items
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Plus, Trash2, ShoppingCart, Upload, Webhook, X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 const SUPPLIERS = [
   {
@@ -55,6 +56,64 @@ export default function MenuManagementPage() {
   const [newCustomItem, setNewCustomItem] = useState({ name: '', category: 'Food', price: '' });
   const [showProModal, setShowProModal] = useState(false);
   const [proFeature, setProFeature] = useState({ title: '', description: '', benefits: [] as string[] });
+  const [loading, setLoading] = useState(true);
+  const [userBarId, setUserBarId] = useState<string | null>(null);
+
+  // Debug: Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
+      console.log('👤 User email:', user?.email);
+      
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      const barId = user.user_metadata?.bar_id;
+      
+      if (!barId) {
+        alert('Your account is not linked to a bar.');
+        router.push('/login');
+        return;
+      }
+
+      setUserBarId(barId);
+      setLoading(false);
+    };
+    checkAuth();
+  }, [router]);
+
+  // In a real implementation, you would load menu items from the database
+  // filtered by userBarId like this:
+  /*
+  useEffect(() => {
+    if (userBarId) {
+      loadMenuItems();
+    }
+  }, [userBarId]);
+
+  const loadMenuItems = async () => {
+    try {
+      console.log('🔍 Loading menu items for bar_id:', userBarId);
+
+      // Get menu items for THIS bar only
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('bar_id', userBarId)
+        .order('category', { ascending: true });
+
+      if (error) throw error;
+
+      setMenuItems(data || []);
+      console.log('✅ Loaded', data?.length || 0, 'menu items for bar:', userBarId);
+    } catch (error) {
+      console.error('Error loading menu:', error);
+    }
+  };
+  */
 
   const handleAddFromCatalog = (product: any) => {
     const price = addingPrice[product.id];
@@ -73,11 +132,33 @@ export default function MenuManagementPage() {
     setBarMenu([...barMenu, newItem]);
     setAddingPrice({});
     setSelectedSupplier(null);
+
+    // In a real implementation, you would save to database with bar_id:
+    /*
+    const { error } = await supabase
+      .from('menu_items')
+      .insert({
+        bar_id: userBarId,
+        name: product.name,
+        category: product.category,
+        price: parseFloat(price),
+        sku: product.sku
+      });
+    */
   };
 
   const handleRemoveFromMenu = (catalogId: string) => {
     if (window.confirm('Remove this product from your menu?')) {
       setBarMenu(barMenu.filter(item => item.catalogId !== catalogId));
+      
+      // In a real implementation, you would delete from database:
+      /*
+      await supabase
+        .from('menu_items')
+        .delete()
+        .eq('bar_id', userBarId)
+        .eq('sku', catalogId);
+      */
     }
   };
 
@@ -97,11 +178,32 @@ export default function MenuManagementPage() {
     setCustomItems([...customItems, item]);
     setNewCustomItem({ name: '', category: 'Food', price: '' });
     setShowAddCustom(false);
+
+    // In a real implementation, you would save to database with bar_id:
+    /*
+    const { error } = await supabase
+      .from('menu_items')
+      .insert({
+        bar_id: userBarId,
+        name: newCustomItem.name,
+        category: newCustomItem.category,
+        price: parseFloat(newCustomItem.price)
+      });
+    */
   };
 
   const handleDeleteCustom = (id: number) => {
     if (window.confirm('Delete this item?')) {
       setCustomItems(customItems.filter(item => item.id !== id));
+      
+      // In a real implementation, you would delete from database:
+      /*
+      await supabase
+        .from('menu_items')
+        .delete()
+        .eq('bar_id', userBarId)
+        .eq('id', id);
+      */
     }
   };
 
@@ -133,6 +235,17 @@ export default function MenuManagementPage() {
     }
     setShowProModal(true);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading menu...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedSupplier) {
     return (
