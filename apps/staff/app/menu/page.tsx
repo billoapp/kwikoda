@@ -132,7 +132,7 @@ export default function MenuManagementPage() {
       // Set RLS context for bar isolation
       console.log('Setting bar context for menu load...');
       const { error: rpcError } = await supabase.rpc('set_bar_context', { 
-        p_p_bar_id: currentBarId  // Fixed: use p_bar_id
+        p_bar_id: currentBarId  // Fixed: use p_bar_id
       });
       
       if (rpcError) {
