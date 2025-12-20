@@ -1,9 +1,9 @@
-// apps/staff/app/settings/page.tsx - REAL DATA ONLY, NO PLACEHOLDERS
+// apps/staff/app/settings/page.tsx - FIXED ONBOARDING & QR CODE
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function SettingsPage() {
@@ -22,16 +22,25 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
   
   const [notifications, setNotifications] = useState({
-    newOrders: true,
-    pendingApprovals: true,
-    payments: true
+    newOrders: false,
+    pendingApprovals: false,
+    payments: false
   });
 
   useEffect(() => {
     loadBarInfo();
   }, []);
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 50);
+  };
 
   const loadBarInfo = async () => {
     try {
@@ -47,7 +56,7 @@ export default function SettingsPage() {
       
       if (!userBarId) {
         console.error('❌ No bar_id in user metadata');
-        alert('Your account is not linked to a bar. Please contact support.');
+        alert('Your account is not linked to a bar. Please contact administrator.');
         router.push('/login');
         return;
       }
@@ -66,7 +75,7 @@ export default function SettingsPage() {
       }
 
       if (!data) {
-        alert('Bar not found. Please contact support.');
+        alert('Bar not found. Please contact administrator.');
         router.push('/login');
         return;
       }
@@ -82,9 +91,14 @@ export default function SettingsPage() {
         slug: data.slug || ''
       };
       
+      // Check if this is a new user (no slug or incomplete info)
+      const incomplete = !info.slug || !info.name;
+      setIsNewUser(incomplete);
+      setEditMode(incomplete);
+      
       setBarInfo(info);
       setEditedInfo(info);
-      console.log('✅ Loaded bar:', info.name, 'ID:', info.id);
+      console.log('✅ Loaded bar:', info.name, 'ID:', info.id, 'Slug:', info.slug);
     } catch (error) {
       console.error('Error loading bar info:', error);
       alert('Failed to load bar information');
@@ -94,6 +108,11 @@ export default function SettingsPage() {
   };
 
   const handleSaveBarInfo = async () => {
+    if (!editedInfo.name.trim()) {
+      alert('❌ Restaurant name is required');
+      return;
+    }
+
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -109,7 +128,23 @@ export default function SettingsPage() {
         ? `${editedInfo.location}, ${editedInfo.city}`
         : editedInfo.location;
 
-      console.log('💾 Saving bar info for bar_id:', userBarId);
+      // Generate slug if not exists
+      let slug = editedInfo.slug || generateSlug(editedInfo.name);
+
+      // Check if slug is unique
+      const { data: existingBar } = await supabase
+        .from('bars')
+        .select('id')
+        .eq('slug', slug)
+        .neq('id', userBarId)
+        .single();
+
+      if (existingBar) {
+        // Slug exists, add random number
+        slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+      }
+
+      console.log('💾 Saving bar info for bar_id:', userBarId, 'with slug:', slug);
 
       const { error } = await supabase
         .from('bars')
@@ -118,6 +153,7 @@ export default function SettingsPage() {
           location: fullLocation,
           phone: editedInfo.phone,
           email: editedInfo.email,
+          slug: slug,
           active: true
         })
         .eq('id', userBarId);
@@ -126,7 +162,8 @@ export default function SettingsPage() {
 
       await loadBarInfo();
       setEditMode(false);
-      alert('✅ Restaurant information updated successfully!');
+      setIsNewUser(false);
+      alert('✅ Restaurant information saved!\n\nYour QR code is ready to download.');
     } catch (error) {
       console.error('Error saving:', error);
       alert('Failed to save changes. Please try again.');
@@ -136,6 +173,10 @@ export default function SettingsPage() {
   };
 
   const handleCancelEdit = () => {
+    if (isNewUser) {
+      alert('Please complete your restaurant setup to continue.');
+      return;
+    }
     setEditedInfo({ ...barInfo });
     setEditMode(false);
   };
@@ -151,22 +192,157 @@ export default function SettingsPage() {
 
   const handleDownloadQR = async () => {
     try {
-      if (!barInfo.id || !barInfo.slug) {
-        alert('Bar information not loaded. Please refresh the page.');
+      if (!barInfo.id || !barInfo.slug || !barInfo.name) {
+        alert('Please save your restaurant information first.');
         return;
       }
 
       const qrData = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png`;
       
-      const link = document.createElement('a');
-      link.href = qrUrl;
-      link.download = `${barInfo.slug}-qr-code.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Create a printable HTML document with margins and info
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${barInfo.name} - QR Code</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 2cm;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              padding: 20px;
+            }
+            .qr-container {
+              background: white;
+              border: 3px solid #f97316;
+              border-radius: 20px;
+              padding: 40px;
+              box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+              text-align: center;
+              max-width: 600px;
+            }
+            h1 {
+              color: #f97316;
+              font-size: 32px;
+              margin: 0 0 10px 0;
+            }
+            .subtitle {
+              color: #666;
+              font-size: 18px;
+              margin-bottom: 30px;
+            }
+            .qr-code {
+              background: white;
+              padding: 20px;
+              border-radius: 10px;
+              display: inline-block;
+              margin-bottom: 30px;
+            }
+            .qr-code img {
+              display: block;
+              width: 400px;
+              height: 400px;
+            }
+            .instructions {
+              background: #fff7ed;
+              border: 2px solid #fed7aa;
+              border-radius: 10px;
+              padding: 20px;
+              margin-top: 20px;
+              text-align: left;
+            }
+            .instructions h2 {
+              color: #f97316;
+              font-size: 20px;
+              margin: 0 0 15px 0;
+            }
+            .instructions ol {
+              margin: 0;
+              padding-left: 20px;
+            }
+            .instructions li {
+              margin-bottom: 10px;
+              font-size: 16px;
+              color: #333;
+            }
+            .url-box {
+              background: #f3f4f6;
+              border: 2px solid #d1d5db;
+              border-radius: 10px;
+              padding: 15px;
+              margin-top: 20px;
+            }
+            .url-box p {
+              margin: 0 0 5px 0;
+              font-size: 14px;
+              color: #666;
+              font-weight: bold;
+            }
+            .url-box code {
+              font-size: 16px;
+              color: #f97316;
+              word-break: break-all;
+            }
+            .footer {
+              margin-top: 30px;
+              color: #999;
+              font-size: 14px;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="qr-container">
+            <h1>${barInfo.name}</h1>
+            <p class="subtitle">Scan to View Menu & Order</p>
+            
+            <div class="qr-code">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png" alt="QR Code" />
+            </div>
 
-      alert(`✅ QR code downloaded for ${barInfo.name}`);
+            <div class="instructions">
+              <h2>📱 How to Order:</h2>
+              <ol>
+                <li>Open your phone camera</li>
+                <li>Point at the QR code above</li>
+                <li>Tap the notification to open menu</li>
+                <li>Browse, add items, and submit your order</li>
+              </ol>
+            </div>
+
+            <div class="url-box">
+              <p>No QR Scanner? Type this URL:</p>
+              <code>${qrData}</code>
+            </div>
+
+            <p class="footer">Powered by Kwikoda Digital Ordering</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Open print dialog
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      }
     } catch (error) {
       console.error('Error generating QR code:', error);
       alert('Failed to generate QR code. Please try again.');
@@ -189,15 +365,33 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-        <button 
-          onClick={() => router.push('/')}
-          className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
-        >
-          <ArrowRight size={24} className="transform rotate-180" />
-        </button>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-orange-100 text-sm">Manage your restaurant</p>
+        {!isNewUser && (
+          <button 
+            onClick={() => router.push('/')}
+            className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
+          >
+            <ArrowRight size={24} className="transform rotate-180" />
+          </button>
+        )}
+        <h1 className="text-2xl font-bold">{isNewUser ? 'Complete Setup' : 'Settings'}</h1>
+        <p className="text-orange-100 text-sm">
+          {isNewUser ? 'Set up your restaurant to get started' : 'Manage your restaurant'}
+        </p>
       </div>
+
+      {isNewUser && (
+        <div className="p-4">
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle size={24} className="text-blue-600 flex-shrink-0 mt-1" />
+            <div>
+              <p className="font-semibold text-blue-900 mb-1">Welcome to Kwikoda!</p>
+              <p className="text-sm text-blue-800">
+                Complete your restaurant information below to generate your QR code and start accepting digital orders.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-4 space-y-4">
         {/* Restaurant Information */}
@@ -209,10 +403,12 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h3 className="font-bold text-gray-800">Restaurant Information</h3>
-                <p className="text-sm text-gray-500">Current registered details</p>
+                <p className="text-sm text-gray-500">
+                  {editMode ? 'Fill in your details' : 'Current registered details'}
+                </p>
               </div>
             </div>
-            {!editMode && (
+            {!editMode && !isNewUser && (
               <button
                 onClick={() => setEditMode(true)}
                 className="flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium"
@@ -225,7 +421,9 @@ export default function SettingsPage() {
 
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Restaurant Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Restaurant Name {editMode && <span className="text-red-500">*</span>}
+              </label>
               {editMode ? (
                 <input
                   type="text"
@@ -304,25 +502,26 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bar Slug (URL)</label>
-              <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                <code className="text-sm text-gray-600 break-all">{barInfo.slug || '(No slug)'}</code>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Used in QR code: mteja.vercel.app/?bar={barInfo.slug}
-              </p>
-            </div>
+            {!editMode && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bar Slug (URL)</label>
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                    <code className="text-sm text-gray-600 break-all">{barInfo.slug || '(No slug)'}</code>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Used in QR code: mteja.vercel.app/?bar={barInfo.slug}
+                  </p>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID (Database)</label>
-              <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                <code className="text-xs text-gray-600 break-all font-mono">{barInfo.id}</code>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Your unique restaurant identifier
-              </p>
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID</label>
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                    <code className="text-xs text-gray-600 break-all font-mono">{barInfo.id}</code>
+                  </div>
+                </div>
+              </>
+            )}
 
             {editMode && (
               <div className="flex gap-2 pt-3">
@@ -332,146 +531,158 @@ export default function SettingsPage() {
                   className="flex-1 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
                 >
                   <Save size={20} />
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  {saving ? 'Saving...' : isNewUser ? 'Complete Setup' : 'Save Changes'}
                 </button>
-                <button
-                  onClick={handleCancelEdit}
-                  disabled={saving}
-                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 disabled:bg-gray-100"
-                >
-                  Cancel
-                </button>
+                {!isNewUser && (
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 disabled:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
 
         {/* QR Code Display */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <QrCode size={20} className="text-blue-600" />
+        {!isNewUser && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <QrCode size={20} className="text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Customer QR Code</h3>
+                <p className="text-sm text-gray-500">For {barInfo.name}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-gray-800">Customer QR Code</h3>
-              <p className="text-sm text-gray-500">For {barInfo.name}</p>
-            </div>
-          </div>
 
-          {barInfo.slug ? (
-            <>
-              {/* QR Code Image */}
-              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
-                <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
-                  <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
-                      alt={`${barInfo.name} QR Code`}
-                      className="w-full h-full"
-                    />
-                  </div>
-                  <div className="text-center mt-4">
-                    <p className="font-bold text-gray-800">{barInfo.name}</p>
-                    <p className="text-sm text-gray-500">Scan to order</p>
-                    <p className="text-xs text-orange-600 mt-1 font-mono">{barInfo.slug}</p>
+            {barInfo.slug ? (
+              <>
+                <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
+                  <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
+                    <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
+                        alt={`${barInfo.name} QR Code`}
+                        className="w-full h-full"
+                      />
+                    </div>
+                    <div className="text-center mt-4">
+                      <p className="font-bold text-gray-800">{barInfo.name}</p>
+                      <p className="text-sm text-gray-500">Scan to order</p>
+                      <p className="text-xs text-orange-600 mt-1 font-mono">{barInfo.slug}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* QR Code URL with Copy Button */}
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-gray-500">QR Code URL:</p>
-                  <button
-                    onClick={handleCopyQRUrl}
-                    className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
-                  >
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-gray-500">Customer URL:</p>
+                    <button
+                      onClick={handleCopyQRUrl}
+                      className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <code className="text-sm text-gray-800 break-all">{qrUrl}</code>
                 </div>
-                <code className="text-sm text-gray-800 break-all">{qrUrl}</code>
+
+                <button
+                  onClick={handleDownloadQR}
+                  className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
+                >
+                  <Download size={20} />
+                  Print QR Code (with Instructions)
+                </button>
+                <p className="text-xs text-center text-gray-500 mt-2">
+                  Includes URL for customers without QR scanners
+                </p>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <AlertCircle size={48} className="mx-auto mb-3 text-orange-500" />
+                <p className="text-gray-700 font-medium mb-2">Setup Required</p>
+                <p className="text-sm text-gray-500">
+                  Complete restaurant information above to generate your QR code
+                </p>
               </div>
+            )}
+          </div>
+        )}
 
-              <button
-                onClick={handleDownloadQR}
-                className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
-              >
-                <Download size={20} />
-                Download QR Code
-              </button>
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500 mb-2">No QR code available</p>
-              <p className="text-sm text-gray-400">Contact support to get your bar slug</p>
+        {/* Notifications - Only show after setup */}
+        {!isNewUser && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Bell size={20} className="text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Notifications</h3>
+                <p className="text-sm text-gray-500">Alert preferences (default: off)</p>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Notifications */}
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Bell size={20} className="text-green-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-800">Notifications</h3>
-              <p className="text-sm text-gray-500">Alert preferences</p>
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+                <span className="text-sm font-medium text-gray-700">New Orders</span>
+                <input
+                  type="checkbox"
+                  checked={notifications.newOrders}
+                  onChange={(e) => setNotifications({...notifications, newOrders: e.target.checked})}
+                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+                <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
+                <input
+                  type="checkbox"
+                  checked={notifications.pendingApprovals}
+                  onChange={(e) => setNotifications({...notifications, pendingApprovals: e.target.checked})}
+                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+                <span className="text-sm font-medium text-gray-700">Payment Received</span>
+                <input
+                  type="checkbox"
+                  checked={notifications.payments}
+                  onChange={(e) => setNotifications({...notifications, payments: e.target.checked})}
+                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                />
+              </label>
             </div>
           </div>
+        )}
 
-          <div className="space-y-3">
-            <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-              <span className="text-sm font-medium text-gray-700">New Orders</span>
-              <input
-                type="checkbox"
-                checked={notifications.newOrders}
-                onChange={(e) => setNotifications({...notifications, newOrders: e.target.checked})}
-                className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-              />
-            </label>
-
-            <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-              <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
-              <input
-                type="checkbox"
-                checked={notifications.pendingApprovals}
-                onChange={(e) => setNotifications({...notifications, pendingApprovals: e.target.checked})}
-                className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-              />
-            </label>
-
-            <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-              <span className="text-sm font-medium text-gray-700">Payment Received</span>
-              <input
-                type="checkbox"
-                checked={notifications.payments}
-                onChange={(e) => setNotifications({...notifications, payments: e.target.checked})}
-                className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-              />
-            </label>
+        {/* Feedback - Only show after setup */}
+        {!isNewUser && (
+          <div className="bg-white rounded-xl shadow-sm">
+            <button
+              onClick={() => alert('Email feedback to: support@kwikoda.com')}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <MessageSquare size={20} className="text-yellow-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">Send Feedback</p>
+                  <p className="text-sm text-gray-500">support@kwikoda.com</p>
+                </div>
+              </div>
+              <ArrowRight size={20} className="text-gray-400" />
+            </button>
           </div>
-        </div>
-
-        {/* Feedback */}
-        <div className="bg-white rounded-xl shadow-sm">
-          <button
-            onClick={() => alert('Feedback form coming soon!')}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <MessageSquare size={20} className="text-yellow-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">Send Feedback</p>
-                <p className="text-sm text-gray-500">Share issues & suggestions</p>
-              </div>
-            </div>
-            <ArrowRight size={20} className="text-gray-400" />
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
