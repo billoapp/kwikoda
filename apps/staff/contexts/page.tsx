@@ -68,15 +68,31 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
   async function setCurrentBar(barId: string) {
     try {
-      // Call RPC to set session variable
-      const { error } = await supabase.rpc('set_bar_context', { bar_id: barId });
+      // Debug logging
+      console.log('Setting current bar to:', barId);
       
-      if (error) throw error;
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(barId)) {
+        throw new Error(`Invalid bar ID format: ${barId}`);
+      }
+
+      // Call RPC with correct parameter name: p_bar_id
+      console.log('Calling set_bar_context RPC...');
+      const { error } = await supabase.rpc('set_bar_context', { 
+        p_bar_id: barId  // Fixed: use p_bar_id instead of bar_id
+      });
+      
+      if (error) {
+        console.error('RPC error:', error);
+        throw error;
+      }
       
       setCurrentBarId(barId);
       
       // Optionally store in localStorage for persistence
       localStorage.setItem('currentBarId', barId);
+      console.log('Bar context set successfully');
     } catch (error) {
       console.error('Failed to set bar context:', error);
       throw error;

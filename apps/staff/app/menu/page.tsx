@@ -101,9 +101,28 @@ export default function MenuManagementPage() {
 
   const loadBarMenu = async () => {
     try {
+      // Debug logging
+      console.log('Loading bar menu for:', currentBarId);
+      
+      // Validate currentBarId
+      if (!currentBarId) {
+        throw new Error('No current bar ID set');
+      }
+      
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(currentBarId)) {
+        throw new Error(`Invalid bar ID format: ${currentBarId}`);
+      }
+
       // Set RLS context for bar isolation
-      if (currentBarId) {
-        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+      console.log('Setting bar context for menu load...');
+      const { error: rpcError } = await supabase.rpc('set_bar_context', { 
+        p_p_bar_id: currentBarId  // Fixed: use p_bar_id
+      });
+      
+      if (rpcError) {
+        console.error('RPC error in loadBarMenu:', rpcError);
+        throw rpcError;
       }
 
       // Load bar's menu items from bar_products table
@@ -172,7 +191,7 @@ export default function MenuManagementPage() {
     try {
       // Set RLS context for bar isolation
       if (currentBarId) {
-        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+        await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
       }
 
       const { error } = await supabase
@@ -202,7 +221,7 @@ export default function MenuManagementPage() {
     try {
       // Set RLS context for bar isolation
       if (currentBarId) {
-        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+        await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
       }
 
       const { error } = await supabase
@@ -251,7 +270,7 @@ export default function MenuManagementPage() {
       // Add to bar menu
       // Set RLS context for bar isolation
       if (currentBarId) {
-        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+        await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
       }
 
       const { error: menuError } = await supabase
