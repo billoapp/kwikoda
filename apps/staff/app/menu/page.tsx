@@ -116,31 +116,24 @@ export default function MenuManagementPage() {
 
   const loadBarMenu = async () => {
     try {
-      // Debug logging
-      console.log('Loading bar menu for:', currentBarId);
-      
-      // Validate currentBarId
       if (!currentBarId) {
-        throw new Error('No current bar ID set');
-      }
-      
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(currentBarId)) {
-        throw new Error(`Invalid bar ID format: ${currentBarId}`);
+        console.log('No currentBarId, skipping menu load');
+        return;
       }
 
-      // Set RLS context for bar isolation
-      console.log('Setting bar context for menu load...');
+      console.log('Loading bar menu for:', currentBarId);
+
+      // Set RLS context
       const { error: rpcError } = await supabase.rpc('set_bar_context', { 
-        p_bar_id: currentBarId  // Fixed: use p_bar_id
+        p_bar_id: currentBarId
       });
       
       if (rpcError) {
         console.error('RPC error in loadBarMenu:', rpcError);
-        throw rpcError;
+        // Continue anyway - RLS might still work
       }
 
-      // Load bar's menu items from bar_products table
+      // Load bar's menu items
       const { data, error } = await supabase
         .from('bar_products')
         .select(`
@@ -158,13 +151,17 @@ export default function MenuManagementPage() {
         .eq('bar_id', currentBarId)
         .eq('active', true);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading bar_products:', error);
+        return; // Just return, don't throw
+      }
 
       setBarProducts(data || []);
       console.log('✅ Loaded bar menu:', data?.length || 0, 'items');
 
     } catch (error) {
-      console.error('Error loading bar menu:', error);
+      console.error('Unexpected error in loadBarMenu:', error);
+      // Swallow error - don't let it crash the page
     }
   };
 

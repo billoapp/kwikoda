@@ -30,49 +30,66 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
   async function loadUserBars() {
     try {
+      setIsLoading(true);
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.log('No authenticated user found');
+        setIsLoading(false);
         return;
       }
 
       console.log('Loading bars for user:', user.id);
 
-      // First check if user_bars table exists and user has access
-      console.log('Querying user_bars for user:', user.id);
+      // Query user_bars table
       const { data, error } = await supabase
         .from('user_bars')
         .select(`
           bar_id,
           role,
-          bars (
+          bars!inner (
             id,
             name
           )
         `)
         .eq('user_id', user.id);
 
-      console.log('user_bars query result:', { data, error });
-
       if (error) {
         console.error('Error loading user_bars:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
         
         // Fallback: try to get bar_id from user metadata (old approach)
         const barId = user.user_metadata?.bar_id;
         if (barId) {
           console.log('Using fallback bar_id from metadata:', barId);
+          
+          // Try to load the bar info
+          const { data: barData } = await supabase
+            .from('bars')
+            .select('id, name')
+            .eq('id', barId)
+            .single();
+          
           const fallbackBar = {
             id: barId,
-            name: 'Default Bar',
+            name: barData?.name || 'Default Bar',
             role: 'owner'
           };
+          
           setUserBars([fallbackBar]);
           await setCurrentBar(barId);
+          setIsLoading(false);
           return;
         }
         
-        throw error;
+        console.error('No bars found for user');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('User has no bars assigned');
+        setIsLoading(false);
+        return;
       }
 
       const bars = data.map((ub: any) => ({
@@ -85,14 +102,12 @@ export function BarProvider({ children }: { children: ReactNode }) {
       setUserBars(bars);
       
       // Set first bar as current by default
-      if (bars.length > 0 && !currentBarId) {
+      if (bars.length > 0) {
         await setCurrentBar(bars[0].id);
-      } else if (bars.length === 0) {
-        console.warn('User has no bars assigned');
       }
+      
     } catch (error) {
       console.error('Failed to load bars:', error);
-      // Don't throw error, just leave userBars empty
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +115,6 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
   async function setCurrentBar(barId: string) {
     try {
-      // Debug logging
       console.log('Setting current bar to:', barId);
       
       // Validate UUID format
@@ -109,10 +123,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
         throw new Error(`Invalid bar ID format: ${barId}`);
       }
 
-      // Call RPC with correct parameter name: p_bar_id
       console.log('Calling set_bar_context RPC...');
       const { error } = await supabase.rpc('set_bar_context', { 
-        p_bar_id: barId  // Fixed: use p_bar_id instead of bar_id
+        p_bar_id: barId
       });
       
       if (error) {
@@ -121,10 +134,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
       }
       
       setCurrentBarId(barId);
-      
-      // Optionally store in localStorage for persistence
       localStorage.setItem('currentBarId', barId);
-      console.log('Bar context set successfully');
+      console.log('✅ Bar context set successfully to:', barId);
+      
     } catch (error) {
       console.error('Failed to set bar context:', error);
       throw error;
