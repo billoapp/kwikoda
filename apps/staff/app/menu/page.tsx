@@ -20,7 +20,7 @@ export default function MenuManagementPage() {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Bar menu
-  const [barMenuItems, setBarMenuItems] = useState<any[]>([]);
+  const [barProducts, setBarProducts] = useState<any[]>([]);
   const [addingPrice, setAddingPrice] = useState<any>({});
   
   // Custom items
@@ -116,9 +116,9 @@ export default function MenuManagementPage() {
 
   const loadBarMenu = async () => {
     try {
-      // Load bar's menu items from bar_menu_items table
+      // Load bar's menu items from bar_products table
       const { data, error } = await supabase
-        .from('bar_menu_items')
+        .from('bar_products')
         .select(`
           *,
           product:products(
@@ -136,7 +136,7 @@ export default function MenuManagementPage() {
 
       if (error) throw error;
 
-      setBarMenuItems(data || []);
+      setBarProducts(data || []);
       console.log('✅ Loaded bar menu:', data?.length || 0, 'items');
 
     } catch (error) {
@@ -169,7 +169,7 @@ export default function MenuManagementPage() {
   });
 
   const isProductInMenu = (productId: string) => {
-    return barMenuItems.some(item => item.product_id === productId);
+    return barProducts.some(item => item.product_id === productId);
   };
 
   const handleAddToMenu = async (product: any) => {
@@ -181,11 +181,11 @@ export default function MenuManagementPage() {
 
     try {
       const { error } = await supabase
-        .from('bar_menu_items')
+        .from('bar_products')
         .insert({
           bar_id: userBarId,
           product_id: product.id,
-          price: parseFloat(price),
+          sale_price: parseFloat(price),
           active: true
         });
 
@@ -206,7 +206,7 @@ export default function MenuManagementPage() {
 
     try {
       const { error } = await supabase
-        .from('bar_menu_items')
+        .from('bar_products')
         .delete()
         .eq('id', menuItemId);
 
@@ -250,11 +250,11 @@ export default function MenuManagementPage() {
 
       // Add to bar menu
       const { error: menuError } = await supabase
-        .from('bar_menu_items')
+        .from('bar_products')
         .insert({
           bar_id: userBarId,
           product_id: productData.id,
-          price: parseFloat(newCustomItem.price),
+          sale_price: parseFloat(newCustomItem.price),
           active: true
         });
 
@@ -437,7 +437,7 @@ export default function MenuManagementPage() {
         </button>
         <h1 className="text-2xl font-bold">Menu Management</h1>
         <p className="text-orange-100 text-sm">
-          {barMenuItems.length} items in your menu
+          {barProducts.length} items in your menu
         </p>
       </div>
 
@@ -512,7 +512,7 @@ export default function MenuManagementPage() {
         {/* Your Menu */}
         <div>
           <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu</h2>
-          {barMenuItems.length === 0 ? (
+          {barProducts.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center text-gray-500">
               <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">No items in your menu yet</p>
@@ -520,7 +520,7 @@ export default function MenuManagementPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl shadow-sm divide-y">
-              {barMenuItems.map(item => {
+              {barProducts.map(item => {
                 const product = item.product;
                 const displayImage = product?.image_url || product?.category_image_url;
                 
@@ -539,7 +539,7 @@ export default function MenuManagementPage() {
                       <p className="font-semibold text-gray-800">{product?.name}</p>
                       <p className="text-xs text-gray-500">{product?.supplier?.name}</p>
                       <p className="text-sm text-orange-600 font-bold mt-1">
-                        KSh {item.price.toLocaleString()}
+                        KSh {item.sale_price.toLocaleString()}
                       </p>
                     </div>
                     <button
