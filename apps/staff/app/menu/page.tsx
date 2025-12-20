@@ -1,70 +1,41 @@
-// apps/staff/app/menu/page.tsx - FIXED: Added bar_id filtering for menu items
+// apps/staff/app/menu/page.tsx - Real product catalog from database
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Plus, Trash2, ShoppingCart, Upload, Webhook, X } from 'lucide-react';
+import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-
-const SUPPLIERS = [
-  {
-    id: 'eabl',
-    name: 'East African Breweries Ltd',
-    logo: '🍺',
-    products: [
-      { id: 'eabl_1', name: 'Tusker Lager 500ml', category: 'Beer', sku: 'TUS500' },
-      { id: 'eabl_2', name: 'Tusker Malt 500ml', category: 'Beer', sku: 'TUSM500' },
-      { id: 'eabl_3', name: 'Guinness 500ml', category: 'Beer', sku: 'GUI500' },
-      { id: 'eabl_4', name: 'Pilsner 500ml', category: 'Beer', sku: 'PIL500' },
-    ]
-  },
-  {
-    id: 'kwal',
-    name: 'Kenya Wine Agencies Ltd',
-    logo: '🍷',
-    products: [
-      { id: 'kwal_1', name: 'Smirnoff Vodka 750ml', category: 'Spirits', sku: 'SMI750' },
-      { id: 'kwal_2', name: "Johnnie Walker Red", category: 'Spirits', sku: 'JWR750' },
-      { id: 'kwal_3', name: 'Baileys 750ml', category: 'Spirits', sku: 'BAI750' },
-    ]
-  },
-  {
-    id: 'cocacola',
-    name: 'Coca-Cola East Africa',
-    logo: '🥤',
-    products: [
-      { id: 'cc_1', name: 'Coca-Cola 300ml', category: 'Soft Drinks', sku: 'COKE300' },
-      { id: 'cc_2', name: 'Sprite 300ml', category: 'Soft Drinks', sku: 'SPR300' },
-      { id: 'cc_3', name: 'Dasani Water 500ml', category: 'Soft Drinks', sku: 'DAS500' },
-    ]
-  }
-];
 
 export default function MenuManagementPage() {
   const router = useRouter();
-  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
-  const [barMenu, setBarMenu] = useState<any[]>([
-    { catalogId: 'eabl_1', supplierName: 'EABL', productName: 'Tusker Lager 500ml', price: 300 },
-    { catalogId: 'eabl_3', supplierName: 'EABL', productName: 'Guinness 500ml', price: 350 },
-  ]);
-  const [customItems, setCustomItems] = useState<any[]>([
-    { id: 101, name: 'Nyama Choma', category: 'Food', price: 1200 },
-    { id: 102, name: 'Chicken Wings', category: 'Food', price: 800 },
-  ]);
-  const [addingPrice, setAddingPrice] = useState<any>({});
-  const [showAddCustom, setShowAddCustom] = useState(false);
-  const [newCustomItem, setNewCustomItem] = useState({ name: '', category: 'Food', price: '' });
-  const [showProModal, setShowProModal] = useState(false);
-  const [proFeature, setProFeature] = useState({ title: '', description: '', benefits: [] as string[] });
   const [loading, setLoading] = useState(true);
   const [userBarId, setUserBarId] = useState<string | null>(null);
+  
+  // Catalog data
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Bar menu
+  const [barMenuItems, setBarMenuItems] = useState<any[]>([]);
+  const [addingPrice, setAddingPrice] = useState<any>({});
+  
+  // Custom items
+  const [customItems, setCustomItems] = useState<any[]>([]);
+  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [newCustomItem, setNewCustomItem] = useState({ 
+    name: '', 
+    category: '', 
+    price: '' 
+  });
 
-  // Debug: Check authentication
+  // Check authentication
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
-      console.log('👤 User email:', user?.email);
       
       if (!user) {
         router.push('/login');
@@ -80,160 +51,225 @@ export default function MenuManagementPage() {
       }
 
       setUserBarId(barId);
-      setLoading(false);
     };
     checkAuth();
   }, [router]);
 
-  // In a real implementation, you would load menu items from the database
-  // filtered by userBarId like this:
-  /*
+  // Load catalog data
   useEffect(() => {
     if (userBarId) {
-      loadMenuItems();
+      loadCatalogData();
+      loadBarMenu();
     }
   }, [userBarId]);
 
-  const loadMenuItems = async () => {
+  const loadCatalogData = async () => {
     try {
-      console.log('🔍 Loading menu items for bar_id:', userBarId);
+      setLoading(true);
 
-      // Get menu items for THIS bar only
-      const { data, error } = await supabase
-        .from('menu_items')
+      // Load suppliers
+      const { data: suppliersData, error: suppliersError } = await supabase
+        .from('suppliers')
         .select('*')
+        .eq('active', true)
+        .order('name');
+
+      if (suppliersError) throw suppliersError;
+
+      // Load categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+      if (categoriesError) throw categoriesError;
+
+      // Load products
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          *,
+          supplier:suppliers(id, name, logo_url)
+        `)
+        .eq('active', true)
+        .order('name');
+
+      if (productsError) throw productsError;
+
+      setSuppliers(suppliersData || []);
+      setCategories(categoriesData || []);
+      setProducts(productsData || []);
+
+      console.log('✅ Loaded catalog:', {
+        suppliers: suppliersData?.length,
+        categories: categoriesData?.length,
+        products: productsData?.length
+      });
+
+    } catch (error) {
+      console.error('Error loading catalog:', error);
+      alert('Failed to load product catalog');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadBarMenu = async () => {
+    try {
+      // Load bar's menu items from bar_menu_items table
+      const { data, error } = await supabase
+        .from('bar_menu_items')
+        .select(`
+          *,
+          product:products(
+            id,
+            name,
+            sku,
+            category,
+            image_url,
+            category_image_url,
+            supplier:suppliers(name)
+          )
+        `)
         .eq('bar_id', userBarId)
-        .order('category', { ascending: true });
+        .eq('active', true);
 
       if (error) throw error;
 
-      setMenuItems(data || []);
-      console.log('✅ Loaded', data?.length || 0, 'menu items for bar:', userBarId);
+      setBarMenuItems(data || []);
+      console.log('✅ Loaded bar menu:', data?.length || 0, 'items');
+
     } catch (error) {
-      console.error('Error loading menu:', error);
+      console.error('Error loading bar menu:', error);
     }
   };
-  */
 
-  const handleAddFromCatalog = (product: any) => {
+  const filteredProducts = products.filter(product => {
+    // Filter by supplier
+    if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
+      return false;
+    }
+
+    // Filter by category
+    if (selectedCategory !== 'all' && product.category !== selectedCategory) {
+      return false;
+    }
+
+    // Filter by search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        product.name.toLowerCase().includes(query) ||
+        product.sku.toLowerCase().includes(query) ||
+        product.category.toLowerCase().includes(query)
+      );
+    }
+
+    return true;
+  });
+
+  const isProductInMenu = (productId: string) => {
+    return barMenuItems.some(item => item.product_id === productId);
+  };
+
+  const handleAddToMenu = async (product: any) => {
     const price = addingPrice[product.id];
     if (!price || price <= 0) {
       alert('Please enter a valid price');
       return;
     }
 
-    const newItem = {
-      catalogId: product.id,
-      supplierName: selectedSupplier.name,
-      productName: product.name,
-      price: parseFloat(price),
-    };
+    try {
+      const { error } = await supabase
+        .from('bar_menu_items')
+        .insert({
+          bar_id: userBarId,
+          product_id: product.id,
+          price: parseFloat(price),
+          active: true
+        });
 
-    setBarMenu([...barMenu, newItem]);
-    setAddingPrice({});
-    setSelectedSupplier(null);
+      if (error) throw error;
 
-    // In a real implementation, you would save to database with bar_id:
-    /*
-    const { error } = await supabase
-      .from('menu_items')
-      .insert({
-        bar_id: userBarId,
-        name: product.name,
-        category: product.category,
-        price: parseFloat(price),
-        sku: product.sku
-      });
-    */
-  };
+      setAddingPrice({ ...addingPrice, [product.id]: '' });
+      await loadBarMenu();
+      alert('✅ Added to your menu!');
 
-  const handleRemoveFromMenu = (catalogId: string) => {
-    if (window.confirm('Remove this product from your menu?')) {
-      setBarMenu(barMenu.filter(item => item.catalogId !== catalogId));
-      
-      // In a real implementation, you would delete from database:
-      /*
-      await supabase
-        .from('menu_items')
-        .delete()
-        .eq('bar_id', userBarId)
-        .eq('sku', catalogId);
-      */
+    } catch (error: any) {
+      console.error('Error adding to menu:', error);
+      alert('Failed to add item: ' + error.message);
     }
   };
 
-  const handleAddCustomItem = () => {
-    if (!newCustomItem.name || !newCustomItem.price) {
+  const handleRemoveFromMenu = async (menuItemId: string) => {
+    if (!window.confirm('Remove this item from your menu?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('bar_menu_items')
+        .delete()
+        .eq('id', menuItemId);
+
+      if (error) throw error;
+
+      await loadBarMenu();
+      alert('✅ Removed from menu');
+
+    } catch (error: any) {
+      console.error('Error removing from menu:', error);
+      alert('Failed to remove: ' + error.message);
+    }
+  };
+
+  const handleAddCustomItem = async () => {
+    if (!newCustomItem.name || !newCustomItem.category || !newCustomItem.price) {
       alert('Please fill in all fields');
       return;
     }
 
-    const item = {
-      id: Date.now(),
-      name: newCustomItem.name,
-      category: newCustomItem.category,
-      price: parseFloat(newCustomItem.price)
-    };
-
-    setCustomItems([...customItems, item]);
-    setNewCustomItem({ name: '', category: 'Food', price: '' });
-    setShowAddCustom(false);
-
-    // In a real implementation, you would save to database with bar_id:
-    /*
-    const { error } = await supabase
-      .from('menu_items')
-      .insert({
-        bar_id: userBarId,
-        name: newCustomItem.name,
-        category: newCustomItem.category,
-        price: parseFloat(newCustomItem.price)
-      });
-    */
-  };
-
-  const handleDeleteCustom = (id: number) => {
-    if (window.confirm('Delete this item?')) {
-      setCustomItems(customItems.filter(item => item.id !== id));
+    try {
+      // For custom items, we can either:
+      // 1. Create them as products (recommended)
+      // 2. Store them separately
       
-      // In a real implementation, you would delete from database:
-      /*
-      await supabase
-        .from('menu_items')
-        .delete()
-        .eq('bar_id', userBarId)
-        .eq('id', id);
-      */
-    }
-  };
+      // Option 1: Create as product
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .insert({
+          supplier_id: null, // Custom items have no supplier
+          name: newCustomItem.name,
+          sku: `CUSTOM-${Date.now()}`,
+          category: newCustomItem.category,
+          description: 'Custom menu item',
+          active: true
+        })
+        .select()
+        .single();
 
-  const handleProFeature = (feature: string) => {
-    if (feature === 'CSV Upload') {
-      setProFeature({
-        title: 'CSV Menu Upload',
-        description: 'Bulk upload your entire menu from a CSV file',
-        benefits: [
-          '• Upload hundreds of items instantly',
-          '• Update prices in bulk',
-          '• Import from existing POS systems',
-          '• Automatic duplicate detection',
-          '• Supports custom fields and categories'
-        ]
-      });
-    } else if (feature === 'Webhooks') {
-      setProFeature({
-        title: 'Webhook Integration',
-        description: 'Connect Kwikoda with your existing POS and systems',
-        benefits: [
-          '• Real-time order sync to your POS',
-          '• Automatic inventory updates',
-          '• Payment reconciliation',
-          '• Custom API endpoints',
-          '• Integration with Toast, Square, Clover, etc.'
-        ]
-      });
+      if (productError) throw productError;
+
+      // Add to bar menu
+      const { error: menuError } = await supabase
+        .from('bar_menu_items')
+        .insert({
+          bar_id: userBarId,
+          product_id: productData.id,
+          price: parseFloat(newCustomItem.price),
+          active: true
+        });
+
+      if (menuError) throw menuError;
+
+      setNewCustomItem({ name: '', category: '', price: '' });
+      setShowAddCustom(false);
+      await loadBarMenu();
+      await loadCatalogData(); // Refresh products
+      alert('✅ Custom item added!');
+
+    } catch (error: any) {
+      console.error('Error adding custom item:', error);
+      alert('Failed to add custom item: ' + error.message);
     }
-    setShowProModal(true);
   };
 
   if (loading) {
@@ -241,68 +277,155 @@ export default function MenuManagementPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading menu...</p>
+          <p className="text-gray-500">Loading catalog...</p>
         </div>
       </div>
     );
   }
 
-  if (selectedSupplier) {
+  // Browsing products view
+  if (selectedSupplier || searchQuery || selectedCategory !== 'all') {
     return (
       <div className="min-h-screen bg-gray-50 pb-24">
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
           <button 
-            onClick={() => setSelectedSupplier(null)}
+            onClick={() => {
+              setSelectedSupplier(null);
+              setSearchQuery('');
+              setSelectedCategory('all');
+            }}
             className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
           >
             <ArrowRight size={24} className="transform rotate-180" />
           </button>
-          <h1 className="text-2xl font-bold">{selectedSupplier.name}</h1>
+          <h1 className="text-2xl font-bold">
+            {selectedSupplier ? selectedSupplier.name : 'Browse Products'}
+          </h1>
+          <p className="text-orange-100 text-sm">
+            {filteredProducts.length} products found
+          </p>
         </div>
 
-        <div className="p-4 space-y-3">
-          {selectedSupplier.products.map((product: any) => {
-            const alreadyAdded = barMenu.find(item => item.catalogId === product.id);
-            
-            return (
-              <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-800">{product.name}</h3>
-                    <p className="text-sm text-gray-500">SKU: {product.sku}</p>
-                  </div>
-                  {alreadyAdded && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
-                      Added
-                    </span>
-                  )}
-                </div>
+        {/* Search & Filter */}
+        <div className="p-4 bg-white border-b sticky top-0 z-10">
+          <div className="relative mb-3">
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products..."
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+            />
+          </div>
 
-                {!alreadyAdded && (
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      placeholder="Sale price (KSh)"
-                      value={addingPrice[product.id] || ''}
-                      onChange={(e) => setAddingPrice({...addingPrice, [product.id]: e.target.value})}
-                      className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                    />
-                    <button
-                      onClick={() => handleAddFromCatalog(product)}
-                      className="bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600 whitespace-nowrap"
-                    >
-                      Add to Menu
-                    </button>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                selectedCategory === 'all' 
+                  ? 'bg-orange-500 text-white' 
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              All
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.name}
+                onClick={() => setSelectedCategory(cat.name)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                  selectedCategory === cat.name 
+                    ? 'bg-orange-500 text-white' 
+                    : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Products List */}
+        <div className="p-4 space-y-3">
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12">
+              <ShoppingCart size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">No products found</p>
+            </div>
+          ) : (
+            filteredProducts.map(product => {
+              const alreadyInMenu = isProductInMenu(product.id);
+              const displayImage = product.image_url || product.category_image_url;
+              
+              return (
+                <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="flex gap-4">
+                    {/* Product Image */}
+                    {displayImage && (
+                      <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        <img 
+                          src={displayImage} 
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = product.category_image_url || '/placeholder.png';
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Product Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800">{product.name}</h3>
+                          <p className="text-xs text-gray-500">
+                            {product.supplier?.name} • SKU: {product.sku}
+                          </p>
+                          <span className="inline-block mt-1 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                            {product.category}
+                          </span>
+                        </div>
+                        {alreadyInMenu && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                            In Menu
+                          </span>
+                        )}
+                      </div>
+
+                      {!alreadyInMenu && (
+                        <div className="flex gap-2 mt-3">
+                          <input
+                            type="number"
+                            placeholder="Price (KSh)"
+                            value={addingPrice[product.id] || ''}
+                            onChange={(e) => setAddingPrice({
+                              ...addingPrice, 
+                              [product.id]: e.target.value
+                            })}
+                            className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => handleAddToMenu(product)}
+                            className="bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600 whitespace-nowrap"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     );
   }
 
+  // Main menu management view
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
@@ -313,98 +436,126 @@ export default function MenuManagementPage() {
           <ArrowRight size={24} className="transform rotate-180" />
         </button>
         <h1 className="text-2xl font-bold">Menu Management</h1>
-        <p className="text-orange-100 text-sm">Build your bar's menu</p>
+        <p className="text-orange-100 text-sm">
+          {barMenuItems.length} items in your menu
+        </p>
       </div>
 
       <div className="p-4 space-y-6">
-        {/* Pro Features Row */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleProFeature('CSV Upload')}
-            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-2 border-orange-200"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Upload size={20} className="text-orange-600" />
-              </div>
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                Pro
-              </span>
-            </div>
-            <h3 className="font-semibold text-gray-800 text-sm text-left">Upload CSV</h3>
-            <p className="text-xs text-gray-500 text-left mt-1">Bulk import menu</p>
-          </button>
-
-          <button
-            onClick={() => handleProFeature('Webhooks')}
-            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-2 border-orange-200"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Webhook size={20} className="text-purple-600" />
-              </div>
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                Pro
-              </span>
-            </div>
-            <h3 className="font-semibold text-gray-800 text-sm text-left">Integrations</h3>
-            <p className="text-xs text-gray-500 text-left mt-1">Connect your POS</p>
-          </button>
-        </div>
-
-        {/* Kwikoda Catalog */}
+        {/* Browse Catalog */}
         <div>
-          <h2 className="text-lg font-bold text-gray-800 mb-3">Kwikoda Supplier Catalog</h2>
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-            <p className="text-sm text-gray-700">
-              <strong>✨ Professional Catalog:</strong> Pre-loaded products with verified SKUs and quality images. Set your own prices.
-            </p>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
+            <button
+              onClick={() => setSearchQuery(' ')} // Trigger search view
+              className="text-orange-600 text-sm font-medium flex items-center gap-1"
+            >
+              <Search size={16} />
+              Search All
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {SUPPLIERS.map(supplier => (
+          {/* Suppliers Grid */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {suppliers.map(supplier => {
+              const productCount = products.filter(p => p.supplier_id === supplier.id).length;
+              
+              return (
+                <button
+                  key={supplier.id}
+                  onClick={() => setSelectedSupplier(supplier)}
+                  className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition text-center"
+                >
+                  {supplier.logo_url ? (
+                    <img 
+                      src={supplier.logo_url} 
+                      alt={supplier.name}
+                      className="w-12 h-12 mx-auto mb-2 object-contain"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 mx-auto mb-2 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">
+                      🏪
+                    </div>
+                  )}
+                  <h3 className="font-semibold text-gray-800 text-sm mb-1">
+                    {supplier.name}
+                  </h3>
+                  <p className="text-xs text-gray-500">{productCount} products</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Categories Quick Filter */}
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {categories.slice(0, 4).map(cat => (
               <button
-                key={supplier.id}
-                onClick={() => setSelectedSupplier(supplier)}
-                className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition text-center"
+                key={cat.name}
+                onClick={() => {
+                  setSelectedCategory(cat.name);
+                  setSearchQuery(' '); // Trigger filtered view
+                }}
+                className="px-4 py-2 bg-white rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md"
               >
-                <div className="text-4xl mb-2">{supplier.logo}</div>
-                <h3 className="font-semibold text-gray-800 text-sm mb-1">{supplier.name}</h3>
-                <p className="text-xs text-gray-500">{supplier.products.length} products</p>
+                {cat.name}
               </button>
             ))}
+            <button
+              onClick={() => setSearchQuery(' ')}
+              className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium whitespace-nowrap"
+            >
+              View All →
+            </button>
           </div>
         </div>
 
-        {/* Your Menu from Catalog */}
+        {/* Your Menu */}
         <div>
-          <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu (From Catalog)</h2>
-          {barMenu.length === 0 ? (
+          <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu</h2>
+          {barMenuItems.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center text-gray-500">
               <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No products added yet</p>
+              <p className="text-sm">No items in your menu yet</p>
+              <p className="text-xs text-gray-400 mt-1">Browse products above to get started</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl shadow-sm divide-y">
-              {barMenu.map(item => (
-                <div key={item.catalogId} className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">{item.productName}</p>
-                    <p className="text-sm text-orange-600 font-bold">KSh {item.price}</p>
+              {barMenuItems.map(item => {
+                const product = item.product;
+                const displayImage = product?.image_url || product?.category_image_url;
+                
+                return (
+                  <div key={item.id} className="p-4 flex items-center gap-4">
+                    {displayImage && (
+                      <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        <img 
+                          src={displayImage} 
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-800">{product?.name}</p>
+                      <p className="text-xs text-gray-500">{product?.supplier?.name}</p>
+                      <p className="text-sm text-orange-600 font-bold mt-1">
+                        KSh {item.price.toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFromMenu(item.id)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                    >
+                      <Trash2 size={20} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleRemoveFromMenu(item.catalogId)}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Custom Items */}
+        {/* Add Custom Item */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-gray-800">Custom Items</h2>
@@ -413,12 +564,12 @@ export default function MenuManagementPage() {
               className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 flex items-center gap-2"
             >
               <Plus size={16} />
-              Add Item
+              Add Custom
             </button>
           </div>
 
           {showAddCustom && (
-            <div className="bg-white rounded-xl p-4 mb-3 shadow-sm">
+            <div className="bg-white rounded-xl p-4 shadow-sm">
               <h3 className="font-semibold mb-3">Add Custom Item</h3>
               <div className="space-y-3">
                 <input
@@ -433,9 +584,10 @@ export default function MenuManagementPage() {
                   onChange={(e) => setNewCustomItem({...newCustomItem, category: e.target.value})}
                   className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                 >
-                  <option value="Food">Food</option>
-                  <option value="Snacks">Snacks</option>
-                  <option value="Specials">Specials</option>
+                  <option value="">Select category</option>
+                  {categories.map(cat => (
+                    <option key={cat.name} value={cat.name}>{cat.name}</option>
+                  ))}
                 </select>
                 <input
                   type="number"
@@ -461,86 +613,8 @@ export default function MenuManagementPage() {
               </div>
             </div>
           )}
-
-          {customItems.length === 0 ? (
-            <div className="bg-white rounded-xl p-8 text-center text-gray-500">
-              <p className="text-sm">No custom items yet</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm divide-y">
-              {customItems.map(item => (
-                <div key={item.id} className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">{item.name}</p>
-                    <p className="text-sm text-gray-500">{item.category} • KSh {item.price}</p>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteCustom(item.id)}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
-
-      {/* Pro Feature Modal */}
-      {showProModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xl font-bold">✨</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
-                  <p className="text-sm text-gray-500">Unlock premium features</p>
-                </div>
-              </div>
-              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-              <p className="text-sm font-semibold text-gray-800 mb-2">
-                {proFeature.title}
-              </p>
-              <p className="text-sm text-gray-600 mb-3">
-                {proFeature.description}
-              </p>
-              <ul className="text-sm text-gray-700 space-y-1">
-                {proFeature.benefits.map((benefit, idx) => (
-                  <li key={idx}>{benefit}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="space-y-3">
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
-              >
-                Coming Soon
-              </button>
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-500 text-center mt-4">
-              Join the waitlist • Be notified when Pro launches
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
