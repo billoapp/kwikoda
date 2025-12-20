@@ -1,9 +1,9 @@
-// apps/staff/app/settings/page.tsx - FIXED: Properly filter by authenticated user's bar_id
+// apps/staff/app/settings/page.tsx - REAL DATA ONLY, NO PLACEHOLDERS
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, CreditCard, Users, Download, QrCode, Save, X, Webhook, MessageSquare, Copy, Check } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function SettingsPage() {
@@ -17,8 +17,8 @@ export default function SettingsPage() {
     email: '',
     slug: ''
   });
-  const [originalBarInfo, setOriginalBarInfo] = useState({});
-  const [hasChanges, setHasChanges] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editedInfo, setEditedInfo] = useState({ ...barInfo });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -28,32 +28,13 @@ export default function SettingsPage() {
     pendingApprovals: true,
     payments: true
   });
-  
-  const [showProModal, setShowProModal] = useState(false);
-  const [proFeature, setProFeature] = useState({ title: '', description: '' });
-
-  // Debug: Check authentication
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
-      console.log('👤 User email:', user?.email);
-    };
-    checkAuth();
-  }, []);
 
   useEffect(() => {
     loadBarInfo();
   }, []);
 
-  useEffect(() => {
-    const changed = JSON.stringify(barInfo) !== JSON.stringify(originalBarInfo);
-    setHasChanges(changed);
-  }, [barInfo, originalBarInfo]);
-
   const loadBarInfo = async () => {
     try {
-      // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -73,7 +54,6 @@ export default function SettingsPage() {
 
       console.log('🔍 Loading bar for authenticated user, bar_id:', userBarId);
 
-      // Get THIS user's bar ONLY
       const { data, error } = await supabase
         .from('bars')
         .select('*')
@@ -101,9 +81,10 @@ export default function SettingsPage() {
         email: data.email || '',
         slug: data.slug || ''
       };
+      
       setBarInfo(info);
-      setOriginalBarInfo(info);
-      console.log('✅ Loaded bar:', info.name, 'for user bar_id:', userBarId);
+      setEditedInfo(info);
+      console.log('✅ Loaded bar:', info.name, 'ID:', info.id);
     } catch (error) {
       console.error('Error loading bar info:', error);
       alert('Failed to load bar information');
@@ -115,7 +96,6 @@ export default function SettingsPage() {
   const handleSaveBarInfo = async () => {
     setSaving(true);
     try {
-      // Get authenticated user's bar_id
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user || !user.user_metadata?.bar_id) {
@@ -125,20 +105,19 @@ export default function SettingsPage() {
       }
 
       const userBarId = user.user_metadata.bar_id;
-      const fullLocation = barInfo.city 
-        ? `${barInfo.location}, ${barInfo.city}`
-        : barInfo.location;
+      const fullLocation = editedInfo.city 
+        ? `${editedInfo.location}, ${editedInfo.city}`
+        : editedInfo.location;
 
       console.log('💾 Saving bar info for bar_id:', userBarId);
 
-      // Update ONLY this user's bar
       const { error } = await supabase
         .from('bars')
         .update({
-          name: barInfo.name,
+          name: editedInfo.name,
           location: fullLocation,
-          phone: barInfo.phone,
-          email: barInfo.email,
+          phone: editedInfo.phone,
+          email: editedInfo.email,
           active: true
         })
         .eq('id', userBarId);
@@ -146,6 +125,7 @@ export default function SettingsPage() {
       if (error) throw error;
 
       await loadBarInfo();
+      setEditMode(false);
       alert('✅ Restaurant information updated successfully!');
     } catch (error) {
       console.error('Error saving:', error);
@@ -155,24 +135,9 @@ export default function SettingsPage() {
     }
   };
 
-  const handleProFeature = (feature: string) => {
-    if (feature === 'Webhooks') {
-      setProFeature({
-        title: 'POS Integration via Webhooks',
-        description: 'Connect Kwikoda with your existing POS system. Orders sync automatically to your kitchen printer, inventory, and accounting.'
-      });
-    } else if (feature === 'Payment Methods') {
-      setProFeature({
-        title: 'Advanced Payment Options',
-        description: 'Accept payments via M-Pesa, credit cards, and custom payment providers. Automatic reconciliation with your accounting system.'
-      });
-    } else if (feature === 'Staff Accounts') {
-      setProFeature({
-        title: 'Multi-Staff Management',
-        description: 'Create separate accounts for your team with custom permissions. Track who added orders, closed tabs, and more.'
-      });
-    }
-    setShowProModal(true);
+  const handleCancelEdit = () => {
+    setEditedInfo({ ...barInfo });
+    setEditMode(false);
   };
 
   const handleCopyQRUrl = () => {
@@ -181,7 +146,6 @@ export default function SettingsPage() {
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      console.log('📋 Copied URL:', url);
     }
   };
 
@@ -193,14 +157,6 @@ export default function SettingsPage() {
       }
 
       const qrData = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
-      
-      console.log('📱 Generating QR code:', {
-        barId: barInfo.id,
-        barName: barInfo.name,
-        barSlug: barInfo.slug,
-        url: qrData
-      });
-      
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png`;
       
       const link = document.createElement('a');
@@ -210,7 +166,7 @@ export default function SettingsPage() {
       link.click();
       document.body.removeChild(link);
 
-      alert(`✅ QR code downloaded!\n\nBar: ${barInfo.name}\nSlug: ${barInfo.slug}\nURL: ${qrData}\n\nTest the QR code by scanning it with your phone.`);
+      alert(`✅ QR code downloaded for ${barInfo.name}`);
     } catch (error) {
       console.error('Error generating QR code:', error);
       alert('Failed to generate QR code. Please try again.');
@@ -246,97 +202,146 @@ export default function SettingsPage() {
       <div className="p-4 space-y-4">
         {/* Restaurant Information */}
         <div className="bg-white rounded-xl shadow-sm p-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Store size={20} className="text-orange-600" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Store size={20} className="text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Restaurant Information</h3>
+                <p className="text-sm text-gray-500">Current registered details</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-gray-800">Restaurant Information</h3>
-              <p className="text-sm text-gray-500">Basic details about your bar</p>
-            </div>
+            {!editMode && (
+              <button
+                onClick={() => setEditMode(true)}
+                className="flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium"
+              >
+                <Edit2 size={18} />
+                Edit
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Restaurant Name</label>
-              <input
-                type="text"
-                value={barInfo.name}
-                onChange={(e) => setBarInfo({...barInfo, name: e.target.value})}
-                placeholder="The Spot Lounge"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                This name appears when customers scan your QR code
-              </p>
+              {editMode ? (
+                <input
+                  type="text"
+                  value={editedInfo.name}
+                  onChange={(e) => setEditedInfo({...editedInfo, name: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                />
+              ) : (
+                <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                  <p className="text-gray-800 font-medium">{barInfo.name || '(Not set)'}</p>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Location/Area</label>
-              <input
-                type="text"
-                value={barInfo.location}
-                onChange={(e) => setBarInfo({...barInfo, location: e.target.value})}
-                placeholder="Westlands"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-              />
+              {editMode ? (
+                <input
+                  type="text"
+                  value={editedInfo.location}
+                  onChange={(e) => setEditedInfo({...editedInfo, location: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                />
+              ) : (
+                <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                  <p className="text-gray-800">{barInfo.location || '(Not set)'}</p>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              <input
-                type="text"
-                value={barInfo.city}
-                onChange={(e) => setBarInfo({...barInfo, city: e.target.value})}
-                placeholder="Nairobi"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-              />
+              {editMode ? (
+                <input
+                  type="text"
+                  value={editedInfo.city}
+                  onChange={(e) => setEditedInfo({...editedInfo, city: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                />
+              ) : (
+                <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                  <p className="text-gray-800">{barInfo.city || '(Not set)'}</p>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-              <input
-                type="tel"
-                value={barInfo.phone}
-                onChange={(e) => setBarInfo({...barInfo, phone: e.target.value})}
-                placeholder="+254712345678"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-              />
+              {editMode ? (
+                <input
+                  type="tel"
+                  value={editedInfo.phone}
+                  onChange={(e) => setEditedInfo({...editedInfo, phone: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                />
+              ) : (
+                <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                  <p className="text-gray-800">{barInfo.phone || '(Not set)'}</p>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={barInfo.email}
-                onChange={(e) => setBarInfo({...barInfo, email: e.target.value})}
-                placeholder="info@thespot.co.ke"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-              />
+              {editMode ? (
+                <input
+                  type="email"
+                  value={editedInfo.email}
+                  onChange={(e) => setEditedInfo({...editedInfo, email: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                />
+              ) : (
+                <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                  <p className="text-gray-800">{barInfo.email || '(Not set)'}</p>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Bar Slug (URL)</label>
-              <div className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50">
-                <code className="text-sm text-gray-600 break-all">{barInfo.slug || 'No slug found'}</code>
+              <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                <code className="text-sm text-gray-600 break-all">{barInfo.slug || '(No slug)'}</code>
               </div>
-              <p className="text-xs text-orange-600 mt-1 font-medium">
-                💡 This slug is used in your QR code: mteja.vercel.app/?bar={barInfo.slug}
-              </p>
               <p className="text-xs text-gray-500 mt-1">
-                Customers will see "{barInfo.name}" when they scan.
+                Used in QR code: mteja.vercel.app/?bar={barInfo.slug}
               </p>
             </div>
 
-            {hasChanges && (
-              <button
-                onClick={handleSaveBarInfo}
-                disabled={saving}
-                className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
-              >
-                <Save size={20} />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID (Database)</label>
+              <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                <code className="text-xs text-gray-600 break-all font-mono">{barInfo.id}</code>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Your unique restaurant identifier
+              </p>
+            </div>
+
+            {editMode && (
+              <div className="flex gap-2 pt-3">
+                <button
+                  onClick={handleSaveBarInfo}
+                  disabled={saving}
+                  className="flex-1 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                >
+                  <Save size={20} />
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 disabled:bg-gray-100"
+                >
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -349,70 +354,59 @@ export default function SettingsPage() {
             </div>
             <div>
               <h3 className="font-bold text-gray-800">Customer QR Code</h3>
-              <p className="text-sm text-gray-500">Scan to start ordering</p>
+              <p className="text-sm text-gray-500">For {barInfo.name}</p>
             </div>
           </div>
 
-          {/* QR Code Image */}
-          <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
-            <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
-              <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-                    qrUrl || 'https://mteja.vercel.app'
-                  )}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
-                  alt={`Order at ${barInfo.name} QR Code`}
-                  className="w-full h-full"
-                />
+          {barInfo.slug ? (
+            <>
+              {/* QR Code Image */}
+              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
+                <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
+                  <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
+                      alt={`${barInfo.name} QR Code`}
+                      className="w-full h-full"
+                    />
+                  </div>
+                  <div className="text-center mt-4">
+                    <p className="font-bold text-gray-800">{barInfo.name}</p>
+                    <p className="text-sm text-gray-500">Scan to order</p>
+                    <p className="text-xs text-orange-600 mt-1 font-mono">{barInfo.slug}</p>
+                  </div>
+                </div>
               </div>
-              <div className="text-center mt-4">
-                <p className="font-bold text-gray-800">{barInfo.name || 'Your Restaurant'}</p>
-                <p className="text-sm text-gray-500">Scan to order digitally</p>
-                {barInfo.slug && (
-                  <p className="text-xs text-orange-600 mt-1 font-mono">
-                    {barInfo.slug}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* QR Code URL with Copy Button */}
-          {barInfo.slug && (
-            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-gray-500">QR Code URL:</p>
-                <button
-                  onClick={handleCopyQRUrl}
-                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
-                >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
+              {/* QR Code URL with Copy Button */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-gray-500">QR Code URL:</p>
+                  <button
+                    onClick={handleCopyQRUrl}
+                    className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <code className="text-sm text-gray-800 break-all">{qrUrl}</code>
               </div>
-              <code className="text-sm text-gray-800 break-all">
-                {qrUrl}
-              </code>
+
+              <button
+                onClick={handleDownloadQR}
+                className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
+              >
+                <Download size={20} />
+                Download QR Code
+              </button>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-2">No QR code available</p>
+              <p className="text-sm text-gray-400">Contact support to get your bar slug</p>
             </div>
           )}
-
-          {/* Download Button */}
-          <button
-            onClick={handleDownloadQR}
-            disabled={!barInfo.slug}
-            className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
-              barInfo.slug 
-                ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            <Download size={20} />
-            Download QR Code
-          </button>
-          
-          <p className="text-xs text-gray-500 text-center mt-3">
-            💡 Print and display at tables, bar counter, or entrance
-          </p>
         </div>
 
         {/* Notifications */}
@@ -423,7 +417,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <h3 className="font-bold text-gray-800">Notifications</h3>
-              <p className="text-sm text-gray-500">Manage alert preferences</p>
+              <p className="text-sm text-gray-500">Alert preferences</p>
             </div>
           </div>
 
@@ -463,7 +457,7 @@ export default function SettingsPage() {
         {/* Feedback */}
         <div className="bg-white rounded-xl shadow-sm">
           <button
-            onClick={() => alert('Feedback form coming soon! Share your challenges, suggestions, or issues.')}
+            onClick={() => alert('Feedback form coming soon!')}
             className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
           >
             <div className="flex items-center gap-3">
@@ -478,114 +472,7 @@ export default function SettingsPage() {
             <ArrowRight size={20} className="text-gray-400" />
           </button>
         </div>
-
-        {/* Pro Features - Coming Soon */}
-        <div className="bg-white rounded-xl shadow-sm divide-y">
-          <button
-            onClick={() => handleProFeature('Webhooks')}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Webhook size={20} className="text-purple-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">POS Integration</p>
-                <p className="text-sm text-gray-500">Connect via webhooks</p>
-              </div>
-            </div>
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-              Coming Soon
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleProFeature('Payment Methods')}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CreditCard size={20} className="text-blue-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">Payment Methods</p>
-                <p className="text-sm text-gray-500">Configure M-Pesa, Cash, Card</p>
-              </div>
-            </div>
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-              Coming Soon
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleProFeature('Staff Accounts')}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Users size={20} className="text-green-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">Staff Accounts</p>
-                <p className="text-sm text-gray-500">Manage access & permissions</p>
-              </div>
-            </div>
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-              Coming Soon
-            </span>
-          </button>
-        </div>
       </div>
-
-      {/* Pro Feature Modal */}
-      {showProModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xl font-bold">✨</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Coming Soon</h3>
-                  <p className="text-sm text-gray-500">Premium feature</p>
-                </div>
-              </div>
-              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-              <p className="text-sm font-semibold text-gray-800 mb-2">
-                {proFeature.title}
-              </p>
-              <p className="text-sm text-gray-600">
-                {proFeature.description}
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
-              >
-                Join Waitlist
-              </button>
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-500 text-center mt-4">
-              Be the first to know when this feature launches
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
