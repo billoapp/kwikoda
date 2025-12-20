@@ -31,8 +31,15 @@ export function BarProvider({ children }: { children: ReactNode }) {
   async function loadUserBars() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No authenticated user found');
+        return;
+      }
 
+      console.log('Loading bars for user:', user.id);
+
+      // First check if user_bars table exists and user has access
+      console.log('Querying user_bars for user:', user.id);
       const { data, error } = await supabase
         .from('user_bars')
         .select(`
@@ -45,7 +52,28 @@ export function BarProvider({ children }: { children: ReactNode }) {
         `)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      console.log('user_bars query result:', { data, error });
+
+      if (error) {
+        console.error('Error loading user_bars:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        
+        // Fallback: try to get bar_id from user metadata (old approach)
+        const barId = user.user_metadata?.bar_id;
+        if (barId) {
+          console.log('Using fallback bar_id from metadata:', barId);
+          const fallbackBar = {
+            id: barId,
+            name: 'Default Bar',
+            role: 'owner'
+          };
+          setUserBars([fallbackBar]);
+          await setCurrentBar(barId);
+          return;
+        }
+        
+        throw error;
+      }
 
       const bars = data.map((ub: any) => ({
         id: ub.bar_id,
@@ -53,14 +81,18 @@ export function BarProvider({ children }: { children: ReactNode }) {
         role: ub.role
       }));
 
+      console.log('Loaded bars:', bars);
       setUserBars(bars);
       
       // Set first bar as current by default
       if (bars.length > 0 && !currentBarId) {
         await setCurrentBar(bars[0].id);
+      } else if (bars.length === 0) {
+        console.warn('User has no bars assigned');
       }
     } catch (error) {
       console.error('Failed to load bars:', error);
+      // Don't throw error, just leave userBars empty
     } finally {
       setIsLoading(false);
     }

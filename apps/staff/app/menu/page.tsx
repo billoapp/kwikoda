@@ -35,9 +35,24 @@ export default function MenuManagementPage() {
 
   // Check authentication and load bars
   useEffect(() => {
-    if (!barLoading && !currentBarId) {
-      router.push('/login');
-    }
+    const checkAuth = async () => {
+      if (!barLoading) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.log('No authenticated user, redirecting to login');
+          router.push('/login');
+          return;
+        }
+        
+        if (!currentBarId) {
+          console.log('No current bar set, but user is authenticated');
+          // Don't redirect immediately - let BarContext handle loading
+          return;
+        }
+      }
+    };
+    
+    checkAuth();
   }, [barLoading, currentBarId, router]);
 
   // Load catalog data
