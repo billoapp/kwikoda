@@ -133,6 +133,8 @@ export default function MenuPage() {
       // Load menu items for this bar
       // Load bar products with product details
       if (fullTab.bar?.id) {
+        console.log('📋 Loading products for bar:', fullTab.bar.id);
+        
         const { data: productsData, error: productsError } = await supabase
           .from('bar_products')
           .select(`
@@ -152,8 +154,14 @@ export default function MenuPage() {
           .eq('bar_id', fullTab.bar.id)
           .eq('active', true);
 
-        if (!productsError && productsData) {
-          setBarProducts(productsData || []);
+        console.log('🔍 Products query result:', { productsData, productsError });
+        console.log('📊 Number of products:', productsData?.length);
+
+        if (productsError) {
+          console.error('❌ Error loading products:', productsError);
+        } else {
+          console.log('✅ Loaded bar products:', productsData);
+          setBarProducts(productsData || []); // ← IMPORTANT: Must use setBarProducts
         }
       }
 
