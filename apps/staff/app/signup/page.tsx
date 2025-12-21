@@ -147,7 +147,7 @@ export default function SignupPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl mb-4">
             <Store size={32} className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Join Kwikoda</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Join Tabz</h1>
           <p className="text-gray-600">Start managing your bar tabs digitally</p>
         </div>
 
@@ -334,9 +334,9 @@ export default function SignupPage() {
               <h2 className="text-xl font-bold text-gray-800 mb-4">Terms & Conditions</h2>
               
               <div className="bg-gray-50 rounded-xl p-4 max-h-48 overflow-y-auto border border-gray-200">
-                <h3 className="font-semibold text-gray-800 mb-2">Kwikoda Platform Agreement</h3>
+                <h3 className="font-semibold text-gray-800 mb-2">Tabz Platform Agreement</h3>
                 <div className="text-sm text-gray-600 space-y-2">
-                  <p>By using Kwikoda, you agree to:</p>
+                  <p>By using Tabz, you agree to:</p>
                   <ul className="list-disc list-inside space-y-1 ml-2">
                     <li>Provide accurate business information</li>
                     <li>Maintain the security of your account credentials</li>
@@ -345,7 +345,7 @@ export default function SignupPage() {
                     <li>Accept our data processing practices</li>
                   </ul>
                   <p className="mt-3">
-                    Kwikoda provides digital tab management services. You are responsible for all transactions processed through your account.
+                    Tabz provides digital tab management services. You are responsible for all transactions processed through your account.
                   </p>
                 </div>
               </div>

@@ -68,7 +68,7 @@ function LandingContent() {
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center justify-center p-6">
       {/* Header */}
       <div className="text-white text-center mb-12">
-        <h1 className="text-5xl font-bold mb-3">Kwikoda</h1>
+        <h1 className="text-5xl font-bold mb-3">Tabz</h1>
         <p className="text-xl text-orange-100">Order smarter, not harder</p>
       </div>
       

@@ -111,7 +111,7 @@ export default function ReportsPage() {
     const printContent = `
       <html>
         <head>
-          <title>Kwikoda Report - ${new Date().toLocaleDateString()}</title>
+          <title>Tabz Report - ${new Date().toLocaleDateString()}</title>
           <style>
             @page { size: A4 portrait; margin: 1.5cm; }
             body {
@@ -223,7 +223,7 @@ export default function ReportsPage() {
         <body>
           <div class="header">
             <h1>${barName || 'Restaurant'}</h1>
-            <h2>Kwikoda Report</h2>
+            <h2>Tabz Report</h2>
             <p>Date: ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             <p>Generated: ${new Date().toLocaleString('en-GB')}</p>
           </div>

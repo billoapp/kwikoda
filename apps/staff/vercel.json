@@ -1,5 +1,5 @@
 {
-  "name": "kwikoda-staff",
+  "name": "Tabz-staff",
   "buildCommand": "cd ../.. && npm run build --workspace=apps/staff",
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && npm install",

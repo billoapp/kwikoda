@@ -3,7 +3,7 @@ import './globals.css';
 import { BarProvider } from '@/contexts/page';
 
 export const metadata: Metadata = {
-  title: 'Kwikoda Staff - Bar Management',
+  title: 'Tabz Staff - Bar Management',
   description: 'Manage tabs, orders, and payments for your bar',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };

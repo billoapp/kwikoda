@@ -1,5 +1,5 @@
 -- ============================================
--- Kwikoda - SUPABASE DATABASE SCHEMA
+-- Tabz - SUPABASE DATABASE SCHEMA
 -- Tab-first ordering system for bars
 -- ============================================
 

@@ -12,7 +12,7 @@ export default function TermsPage() {
           
           <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3">1. Service Description</h2>
           <p className="text-gray-700 mb-4">
-            Kwikoda provides a digital ordering platform for bars and restaurants. By using our service, you agree to these terms.
+            Tabz provides a digital ordering platform for bars and restaurants. By using our service, you agree to these terms.
           </p>
 
           <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3">2. Anonymous Usage</h2>
@@ -22,7 +22,7 @@ export default function TermsPage() {
 
           <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3">3. Payment</h2>
           <p className="text-gray-700 mb-4">
-            All orders must be paid through the establishment's accepted payment methods. Kwikoda is not responsible for payment processing.
+            All orders must be paid through the establishment's accepted payment methods. Tabz is not responsible for payment processing.
           </p>
 
           <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3">4. User Conduct</h2>
@@ -32,7 +32,7 @@ export default function TermsPage() {
 
           <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3">5. Limitation of Liability</h2>
           <p className="text-gray-700 mb-4">
-            Kwikoda is a platform connecting customers with establishments. We are not responsible for order fulfillment, product quality, or service delivery.
+            Tabz is a platform connecting customers with establishments. We are not responsible for order fulfillment, product quality, or service delivery.
           </p>
         </div>
 

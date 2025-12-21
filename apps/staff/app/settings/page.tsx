@@ -317,7 +317,7 @@ export default function SettingsPage() {
               <code>${qrData}</code>
             </div>
 
-            <p class="footer">Powered by Kwikoda Digital Ordering</p>
+            <p class="footer">Powered by Tabz Digital Ordering</p>
           </div>
         </body>
         </html>
@@ -374,7 +374,7 @@ export default function SettingsPage() {
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
               <AlertCircle size={24} className="text-blue-600 flex-shrink-0 mt-1" />
               <div>
-                <p className="font-semibold text-blue-900 mb-1">Welcome to Kwikoda!</p>
+                <p className="font-semibold text-blue-900 mb-1">Welcome to Tabz!</p>
                 <p className="text-sm text-blue-800">
                   Complete your restaurant information below to generate your QR code and start accepting digital orders.
                 </p>
@@ -653,7 +653,7 @@ export default function SettingsPage() {
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm">
               <button
-                onClick={() => alert('Email feedback to: support@kwikoda.com')}
+                onClick={() => alert('Email feedback to: support@Tabz.com')}
                 className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
               >
                 <div className="flex items-center gap-3">
@@ -662,7 +662,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="text-left">
                     <p className="font-semibold text-gray-800">Send Feedback</p>
-                    <p className="text-sm text-gray-500">support@kwikoda.com</p>
+                    <p className="text-sm text-gray-500">support@Tabz.com</p>
                   </div>
                 </div>
                 <ArrowRight size={20} className="text-gray-400" />

@@ -1,6 +1,6 @@
 // lib/deviceId.ts
 export function getDeviceId(): string {
-  const storageKey = 'kwikoda_device_id';
+  const storageKey = 'Tabz_device_id';
   
   let deviceId = localStorage.getItem(storageKey);
   

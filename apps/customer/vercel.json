@@ -1,5 +1,5 @@
 {
-  "name": "kwikoda-customer",
+  "name": "Tabz-customer",
   "buildCommand": "cd ../.. && npm run build --workspace=apps/customer",
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && npm install",
