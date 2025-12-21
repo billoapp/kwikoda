@@ -145,10 +145,10 @@ export default function MenuPage() {
       }
       setDisplayName(name);
 
-      if (fullTab.bar?.id) {
+            if (fullTab.bar?.id) {
         console.log('📋 Loading products for bar:', fullTab.bar.id);
         
-        // ✅ FIXED: Query and transform data to match single object interface
+        // ✅ FIXED: Proper Supabase query syntax
         const { data: productsData, error: productsError } = await supabase
           .from('bar_products')
           .select(`
@@ -194,15 +194,15 @@ export default function MenuPage() {
               };
             }
             
-            // Handle standard products (when products array exists)
-            if (Array.isArray(item.products) && item.products.length > 0) {
+            // Handle standard products (when products object exists)
+            if (item.products && typeof item.products === 'object') {
               return {
                 id: item.id,
                 bar_id: item.bar_id,
                 product_id: item.product_id,
                 sale_price: item.sale_price,
                 active: item.active,
-                product: item.products[0]
+                product: item.products
               };
             }
             
@@ -212,7 +212,7 @@ export default function MenuPage() {
           setBarProducts(transformedProducts as BarProduct[]);
         }
 
-        // ✅ Load categories
+        // ✅ Load categories - FIXED query
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
           .select('*')
