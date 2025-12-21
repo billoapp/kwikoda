@@ -176,6 +176,20 @@ export default function MenuPage() {
           console.log('✅ Loaded bar products:', productsData);
           setBarProducts(productsData || []);
         }
+
+        // Load categories for this bar
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('bar_id', fullTab.bar.id)
+          .eq('active', true);
+
+        if (categoriesError) {
+          console.error('❌ Error loading categories:', categoriesError);
+        } else {
+          console.log('✅ Loaded categories:', categoriesData);
+          setCategories(categoriesData || []);
+        }
       }
 
       const { data: ordersData, error: ordersError } = await supabase
@@ -536,19 +550,25 @@ export default function MenuPage() {
               ))}
             </div>
             
-            {/* ✅ FIXED MENU DISPLAY */}
+            {/* ✅ FIXED: Using getDisplayImage for proper image fallback */}
             <div className="grid grid-cols-2 gap-3 mb-20">
               {filteredProducts.map(barProduct => (
                 <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
-                  {barProduct.products[0]?.image_url ? (
+                  {getDisplayImage(barProduct.products[0]) ? (
                     <img 
-                      src={barProduct.products[0].image_url} 
-                      alt={barProduct.products[0].name}
+                      src={getDisplayImage(barProduct.products[0])} 
+                      alt={barProduct.products[0]?.name || 'Product'}
                       className="w-full h-32 object-cover rounded-lg mb-2"
                     />
                   ) : (
                     <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
-                      <span className="text-5xl">🍺</span>
+                      <span className="text-5xl">
+                        {barProduct.products[0]?.category === 'Beer' ? '🍺' : 
+                         barProduct.products[0]?.category === 'Wine' ? '🍷' :
+                         barProduct.products[0]?.category === 'Spirits' ? '🥃' :
+                         barProduct.products[0]?.category === 'Cocktails' ? '🍸' :
+                         barProduct.products[0]?.category === 'Non-Alcoholic' ? '🥤' : '🍴'}
+                      </span>
                     </div>
                   )}
                   
@@ -796,7 +816,13 @@ export default function MenuPage() {
                 <div key={item.bar_product_id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">🍺</span>
+                      <span className="text-2xl">
+                        {item.category === 'Beer' ? '🍺' : 
+                         item.category === 'Wine' ? '🍷' :
+                         item.category === 'Spirits' ? '🥃' :
+                         item.category === 'Cocktails' ? '🍸' :
+                         item.category === 'Non-Alcoholic' ? '🥤' : '🍴'}
+                      </span>
                     </div>
                     <div>
                       <p className="font-semibold">{item.name}</p>
