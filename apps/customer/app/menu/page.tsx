@@ -42,14 +42,16 @@ export default function MenuPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  // Helper function to get display image with category fallback - SIMILAR TO STAFF APP
+  // Helper function to get display image with category fallback - SAME AS STAFF APP
   const getDisplayImage = (product: Product, categoryName?: string) => {
     if (!product) return null;
     
+    // 1. Try product image first (though none have images yet)
     if (product.image_url) {
       return product.image_url;
     }
     
+    // 2. Fall back to category image - EXACT SAME LOGIC AS STAFF APP
     const category = categories.find(cat => 
       cat.name === (categoryName || product.category)
     );
@@ -149,17 +151,26 @@ export default function MenuPage() {
       if (fullTab.bar?.id) {
         console.log('📋 Loading products for bar:', fullTab.bar.id);
         
-        // Load categories FIRST (like in staff app)
+        // FIXED: Load categories WITHOUT 'active' filter (categories table has no active column)
         try {
           const { data: categoriesData, error: categoriesError } = await supabase
             .from('categories')
             .select('*')
-            .eq('active', true);
+            .order('name');  // SAME AS STAFF APP - NO ACTIVE FILTER
 
           if (categoriesError) {
             console.error('❌ Error loading categories:', categoriesError);
+            // If error, try without order as well
+            const { data: retryData, error: retryError } = await supabase
+              .from('categories')
+              .select('*');
+              
+            if (!retryError) {
+              console.log('✅ Loaded categories (retry):', retryData?.length || 0);
+              setCategories(retryData || []);
+            }
           } else {
-            console.log('✅ Loaded categories:', categoriesData);
+            console.log('✅ Loaded categories:', categoriesData?.length || 0);
             setCategories(categoriesData || []);
           }
         } catch (error) {
@@ -602,8 +613,8 @@ export default function MenuPage() {
                 const product = barProduct.product;
                 if (!product) return null;
                 
-                // USE THE SAME APPROACH AS STAFF APP
-                const displayImage = getDisplayImage(product, product.category);
+                // SAME AS STAFF APP - No second parameter needed
+                const displayImage = getDisplayImage(product);
                 
                 return (
                   <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
@@ -614,13 +625,27 @@ export default function MenuPage() {
                           alt={product.name || 'Product'}
                           className="w-full h-full object-cover"
                           onError={(e) => {
+                            console.error('❌ Image failed to load:', displayImage);
                             e.currentTarget.style.display = 'none';
+                            // Show fallback when image fails
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center';
+                              const span = document.createElement('span');
+                              span.className = 'text-4xl text-gray-400 font-semibold';
+                              span.textContent = product.category?.charAt(0) || 'P';
+                              fallback.appendChild(span);
+                              parent.appendChild(fallback);
+                            }
                           }}
                         />
                       </div>
                     ) : (
-                      <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
-                        <span className="text-3xl">🍺</span>
+                      <div className="w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center">
+                        <span className="text-4xl text-gray-400 font-semibold">
+                          {product.category?.charAt(0) || 'P'}
+                        </span>
                       </div>
                     )}
                     
