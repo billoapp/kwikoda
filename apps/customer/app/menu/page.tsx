@@ -19,7 +19,7 @@ interface BarProduct {
   product_id: string;
   sale_price: number;
   active: boolean;
-  products: Product[]; 
+  product?: Product; // ✅ SINGLE OBJECT, not array
 }
 
 export default function MenuPage() {
@@ -42,20 +42,20 @@ export default function MenuPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  // Helper function to get display image with category fallback
-  const getDisplayImage = (product: any, categoryName?: string) => {
+  // ✅ Helper function to get display image with category fallback
+  const getDisplayImage = (product: Product) => {
+    if (!product) return null;
+    
     // If product has image, use it
     if (product.image_url) {
       return product.image_url;
     }
     
     // Otherwise, find category image from loaded categories
-    const category = categories.find(cat => 
-      cat.name === (categoryName || product.category)
-    );
-    
+    const category = categories.find(cat => cat.name === product?.category);
     return category?.image_url || null;
   };
+
   const [showTimer, setShowTimer] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(300);
 
@@ -148,6 +148,7 @@ export default function MenuPage() {
       if (fullTab.bar?.id) {
         console.log('📋 Loading products for bar:', fullTab.bar.id);
         
+        // ✅ FIXED: Query and transform data to match single object interface
         const { data: productsData, error: productsError } = await supabase
           .from('bar_products')
           .select(`
@@ -167,21 +168,30 @@ export default function MenuPage() {
           .eq('bar_id', fullTab.bar.id)
           .eq('active', true);
 
-        console.log('🔍 Products query result:', { productsData, productsError });
-        console.log('📊 Number of products:', productsData?.length);
-
         if (productsError) {
           console.error('❌ Error loading products:', productsError);
         } else {
-          console.log('✅ Loaded bar products:', productsData);
-          setBarProducts(productsData || []);
+          console.log('✅ Raw products data:', productsData);
+          
+          // ✅ TRANSFORM: Convert array to single object
+          const transformedProducts = (productsData || []).map(item => ({
+            id: item.id,
+            bar_id: item.bar_id,
+            product_id: item.product_id,
+            sale_price: item.sale_price,
+            active: item.active,
+            product: Array.isArray(item.products) && item.products.length > 0 
+              ? item.products[0]
+              : undefined // Use undefined instead of null
+          })).filter(item => item.product !== undefined); // Filter out items without products
+
+          setBarProducts(transformedProducts);
         }
 
-        // Load categories for this bar
+        // ✅ Load categories
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
           .select('*')
-          .eq('bar_id', fullTab.bar.id)
           .eq('active', true);
 
         if (categoriesError) {
@@ -281,26 +291,27 @@ export default function MenuPage() {
     }
   };
 
-  // ✅ FIXED: Access products as object, not array
+  // ✅ Access product as single object
   const categoryOptions = ['All', ...new Set(
     barProducts
-      .map(bp => bp.products[0]?.category)
-      .filter(Boolean)
-  )];
+      .map(bp => bp.product?.category)
+.filter((cat): cat is string => cat !== undefined && cat !== null && cat.trim() !== '')  )];
   
   let filteredProducts = selectedCategory === 'All' 
     ? barProducts 
-    : barProducts.filter(bp => bp.products[0]?.category === selectedCategory);
+    : barProducts.filter(bp => bp.product?.category === selectedCategory);
   
   if (searchQuery.trim()) {
     filteredProducts = filteredProducts.filter(bp => 
-      bp.products[0]?.name.toLowerCase().includes(searchQuery.toLowerCase())
+      bp.product?.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }
 
-  // ✅ FIXED: Access products as object, not array
+  // ✅ Access product as single object
   const addToCart = (barProduct: BarProduct) => {
-    const product = barProduct.products[0];
+    const product = barProduct.product;
+    if (!product) return;
+    
     const existing = cart.find(c => c.bar_product_id === barProduct.id);
     const newCart = existing
       ? cart.map(c => c.bar_product_id === barProduct.id ? {...c, quantity: c.quantity + 1} : c)
@@ -550,62 +561,67 @@ export default function MenuPage() {
               ))}
             </div>
             
-            {/* ✅ FIXED: Using getDisplayImage for proper image fallback */}
+            {/* ✅ Using getDisplayImage with single object */}
             <div className="grid grid-cols-2 gap-3 mb-20">
-              {filteredProducts.map(barProduct => (
-                <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
-                  {getDisplayImage(barProduct.products[0]) ? (
-                    <img 
-                      src={getDisplayImage(barProduct.products[0])} 
-                      alt={barProduct.products[0]?.name || 'Product'}
-                      className="w-full h-32 object-cover rounded-lg mb-2"
-                    />
-                  ) : (
-                    <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
-                      <span className="text-5xl">
-                        {barProduct.products[0]?.category === 'Beer' ? '🍺' : 
-                         barProduct.products[0]?.category === 'Wine' ? '🍷' :
-                         barProduct.products[0]?.category === 'Spirits' ? '🥃' :
-                         barProduct.products[0]?.category === 'Cocktails' ? '🍸' :
-                         barProduct.products[0]?.category === 'Non-Alcoholic' ? '🥤' : '🍴'}
-                      </span>
-                    </div>
-                  )}
-                  
-                  <div className="text-center">
-                    {/* Product Name - BOLD AND PROMINENT */}
-                    <h3 className="font-bold text-gray-800 text-base mb-1 line-clamp-2">
-                      {barProduct.products[0]?.name || 'Product'}
-                    </h3>
-                    
-                    {/* Category Badge */}
-                    <span className="inline-block text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded-full mb-2">
-                      {barProduct.products[0]?.category || 'Item'}
-                    </span>
-                    
-                    {/* Description (if available) */}
-                    {barProduct.products[0]?.description && (
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-2">
-                        {barProduct.products[0].description}
-                      </p>
+              {filteredProducts.map(barProduct => {
+                const product = barProduct.product;
+                if (!product) return null;
+                
+                const displayImage = getDisplayImage(product);
+                
+                return (
+                  <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
+                    {displayImage ? (
+                      <img 
+                        src={displayImage} 
+                        alt={product.name || 'Product'}
+                        className="w-full h-32 object-cover rounded-lg mb-2"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
+                        <span className="text-5xl">
+                          {product.category === 'Beer' ? '🍺' : 
+                           product.category === 'Wine' ? '🍷' :
+                           product.category === 'Spirits' ? '🥃' :
+                           product.category === 'Cocktails' ? '🍸' :
+                           product.category === 'Non-Alcoholic' ? '🥤' : '🍴'}
+                        </span>
+                      </div>
                     )}
                     
-                    {/* Price - LARGE AND VISIBLE */}
-                    <p className="text-orange-600 font-bold text-xl mb-2">
-                      KSh {barProduct.sale_price.toFixed(0)}
-                    </p>
+                    <div className="text-center">
+                      <h3 className="font-bold text-gray-800 text-base mb-1 line-clamp-2">
+                        {product.name || 'Product'}
+                      </h3>
+                      
+                      <span className="inline-block text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded-full mb-2">
+                        {product.category || 'Item'}
+                      </span>
+                      
+                      {product.description && (
+                        <p className="text-xs text-gray-500 mb-2 line-clamp-2">
+                          {product.description}
+                        </p>
+                      )}
+                      
+                      <p className="text-orange-600 font-bold text-xl mb-2">
+                        KSh {barProduct.sale_price.toFixed(0)}
+                      </p>
+                    </div>
+                    
+                    <button 
+                      onClick={() => addToCart(barProduct)} 
+                      className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 font-medium transition"
+                    >
+                      <Plus size={18} />
+                      <span className="text-sm">Add to Cart</span>
+                    </button>
                   </div>
-                  
-                  {/* Add to Cart Button */}
-                  <button 
-                    onClick={() => addToCart(barProduct)} 
-                    className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 font-medium transition"
-                  >
-                    <Plus size={18} />
-                    <span className="text-sm">Add to Cart</span>
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
