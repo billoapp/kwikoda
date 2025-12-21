@@ -133,7 +133,11 @@ export default function TabDetailPage() {
     try {
       const { error } = await supabase
         .from('tabs')
-        .update({ status: 'closed', closed_at: new Date().toISOString() })
+        .update({ 
+          status: 'closed', 
+          closed_at: new Date().toISOString(),
+          closed_by: 'staff' // ✅ Track that staff closed it
+        })
         .eq('id', tabId);
 
       if (error) throw error;

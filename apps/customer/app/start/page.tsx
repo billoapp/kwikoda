@@ -5,6 +5,8 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
+
 
 // Create a separate component that uses useSearchParams
 function ConsentContent() {
@@ -125,16 +127,58 @@ function ConsentContent() {
     setCreating(true);
 
     try {
-      // Determine display name and tab_number
+      const barDeviceKey = getBarDeviceKey(barId);
+      
+      // ✅ CHECK: Does this device already have an open tab at this bar?
+      const { data: existingTab, error: checkError } = await supabase
+        .from('tabs')
+        .select('*')
+        .eq('bar_id', barId)
+        .eq('owner_identifier', barDeviceKey)
+        .eq('status', 'open')
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      // If tab exists, reuse it
+      if (existingTab) {
+        console.log('✅ Found existing open tab, resuming:', existingTab.tab_number);
+        
+        // Update display name if customer provided a new nickname
+        if (nickname.trim()) {
+          const notes = JSON.parse(existingTab.notes || '{}');
+          notes.display_name = nickname.trim();
+          
+          await supabase
+            .from('tabs')
+            .update({ notes: JSON.stringify(notes) })
+            .eq('id', existingTab.id);
+        }
+
+        const displayName = nickname.trim() || (() => {
+          try {
+            const notes = JSON.parse(existingTab.notes || '{}');
+            return notes.display_name || `Tab ${existingTab.tab_number}`;
+          } catch {
+            return `Tab ${existingTab.tab_number}`;
+          }
+        })();
+
+        sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
+        sessionStorage.setItem('displayName', displayName);
+        sessionStorage.setItem('barName', barName);
+        router.push('/menu');
+        return;
+      }
+
+      // Determine display name and tab_number for NEW tab
       let displayName: string;
       let tabNumber: number | null;
       
       if (nickname.trim()) {
-        // User provided nickname
         displayName = nickname.trim();
         tabNumber = null;
       } else {
-        // Auto-generate Tab number
         const { data: existingTabs } = await supabase
           .from('tabs')
           .select('tab_number')
@@ -151,19 +195,20 @@ function ConsentContent() {
         tabNumber = nextNumber;
       }
 
-      console.log('🔍 Creating tab for bar:', barId, 'display:', displayName);
+      console.log('📝 Creating NEW tab for bar:', barId);
 
-      // Create tab with consent data
+      // Create new tab with device-bar key
       const { data: tab, error: tabError } = await supabase
         .from('tabs')
         .insert({
           bar_id: barId,
           tab_number: tabNumber,
           status: 'open',
-          owner_identifier: `anon_${Date.now()}`,
+          owner_identifier: barDeviceKey, // ✅ Use device-bar key
           notes: JSON.stringify({
             display_name: displayName,
             has_nickname: !!nickname.trim(),
+            device_id: getDeviceId(),
             notifications_enabled: notificationsEnabled,
             terms_accepted: termsAccepted,
             accepted_at: new Date().toISOString(),
@@ -173,25 +218,18 @@ function ConsentContent() {
         .select()
         .single();
 
-      if (tabError) {
-        console.error('❌ Tab creation error:', tabError);
-        throw tabError;
-      }
+      if (tabError) throw tabError;
 
-      console.log('✅ Tab created successfully:', tab);
+      console.log('✅ New tab created successfully:', tab);
 
-      // Store in session
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
-      sessionStorage.setItem('notificationsEnabled', String(notificationsEnabled));
-
-      // Navigate to menu
       router.push('/menu');
 
     } catch (error: any) {
-      console.error('❌ Error creating tab:', error);
-      alert(`Error creating tab: ${error.message || 'Please try again'}`);
+      console.error('❌ Error creating/loading tab:', error);
+      alert(`Error: ${error.message || 'Please try again'}`);
     } finally {
       setCreating(false);
     }

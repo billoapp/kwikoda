@@ -24,6 +24,7 @@ interface BarProduct {
 
 export default function MenuPage() {
   const router = useRouter();
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [tab, setTab] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('Your Tab');
@@ -187,6 +188,40 @@ export default function MenuPage() {
       setLoading(false);
     }
   };
+
+  const handleCloseTab = async () => {
+    if (balance > 0) {
+      alert(`You still have an outstanding balance of KSh ${balance.toFixed(0)}. Please complete payment before closing.`);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tabs')
+        .update({ 
+          status: 'closed', 
+          closed_at: new Date().toISOString(),
+          closed_by: 'customer'
+        })
+        .eq('id', tab.id);
+
+      if (error) throw error;
+
+      // Clear all session data
+      sessionStorage.removeItem('currentTab');
+      sessionStorage.removeItem('cart');
+      sessionStorage.removeItem('displayName');
+      sessionStorage.removeItem('barName');
+
+      alert('✅ Tab closed successfully! Thank you for visiting ' + barName + '.');
+      router.push('/');
+
+    } catch (error: any) {
+      console.error('Error closing tab:', error);
+      alert('Failed to close tab. Please ask staff for assistance.');
+    }
+  };
+
 
   const handleApproveOrder = async (orderId: string) => {
     setApprovingOrder(orderId);
@@ -660,6 +695,69 @@ export default function MenuPage() {
               <CreditCard size={20} />
               Pay KSh {paymentAmount || '0'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Close Tab Section - Only show if balance is 0 and has orders */}
+      {balance === 0 && orders.length > 0 && (
+        <div className="bg-white p-4 min-h-screen">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
+          
+          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-4 text-center">
+            <div className="text-5xl mb-3">✓</div>
+            <p className="text-lg font-bold text-green-800 mb-2">Your tab is fully paid!</p>
+            <p className="text-sm text-gray-600">You can close your tab or continue ordering</p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => setShowCloseConfirm(true)}
+              className="w-full bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 shadow-lg flex items-center justify-center gap-2"
+            >
+              <CheckCircle size={20} />
+              Close My Tab
+            </button>
+            
+            <button
+              onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300"
+            >
+              Order More Drinks
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-500 text-center mt-4">
+            💡 Tip: Close your tab when you're done to avoid confusion on your next visit
+          </p>
+        </div>
+      )}
+
+      {/* Close Tab Confirmation Modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-800 mb-3">Close Your Tab?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to close your tab? You'll need to start a new one if you want to order again later.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowCloseConfirm(false);
+                  handleCloseTab();
+                }}
+                className="flex-1 bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600"
+              >
+                Yes, Close Tab
+              </button>
+            </div>
           </div>
         </div>
       )}
