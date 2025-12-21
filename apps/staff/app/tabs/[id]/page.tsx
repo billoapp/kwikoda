@@ -23,21 +23,39 @@ export default function TabDetailPage() {
     setLoading(true);
     
     try {
+      // ✅ FIXED: Load tab with proper query
       const { data: tabData, error: tabError } = await supabase
         .from('tabs')
-        .select(`
-          *,
-          bar:bars(name, location),
-          orders:tab_orders(*),
-          payments:tab_payments(*)
-        `)
+        .select('*, bars(id, name, location)')
         .eq('id', tabId)
         .single();
 
       if (tabError) throw tabError;
 
-      console.log('✅ Tab loaded:', tabData);
-      setTab(tabData);
+      // ✅ Load orders and payments separately
+      const [ordersResult, paymentsResult] = await Promise.all([
+        supabase
+          .from('tab_orders')
+          .select('*')
+          .eq('tab_id', tabId)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('tab_payments')
+          .select('*')
+          .eq('tab_id', tabId)
+          .order('created_at', { ascending: false })
+      ]);
+
+      const fullTabData = {
+        ...tabData,
+        bar: tabData.bars, // Normalize bar data
+        orders: ordersResult.data || [],
+        payments: paymentsResult.data || []
+      };
+
+      console.log('✅ Tab loaded:', fullTabData);
+      setTab(fullTabData);
 
       // Extract display name from notes
       let name = `Tab ${tabData.tab_number || 'Unknown'}`;
@@ -61,7 +79,6 @@ export default function TabDetailPage() {
   };
 
   const handleMarkServed = async (orderId: string, initiatedBy: string) => {
-    // ⭐ KEY CHANGE: Prevent staff from approving their own orders
     if (initiatedBy === 'staff') {
       alert('⚠️ Cannot approve staff-initiated orders. Customer must approve.');
       return;
@@ -152,7 +169,6 @@ export default function TabDetailPage() {
     return `${Math.floor(seconds / 3600)}h ago`;
   };
 
-  // ⭐ Helper function to get order style based on initiator
   const getOrderStyle = (initiatedBy: string) => {
     if (initiatedBy === 'staff') {
       return {
@@ -284,7 +300,6 @@ export default function TabDetailPage() {
               
               return (
                 <div key={order.id} className={`bg-white rounded-xl p-4 shadow-sm ${orderStyle.borderColor}`}>
-                  {/* ⭐ Visual Indicator for Order Origin */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       {orderStyle.icon}
@@ -323,7 +338,6 @@ export default function TabDetailPage() {
                     </div>
                   </div>
                   
-                  {/* ⭐ Conditional Button Based on Initiator */}
                   {order.status === 'pending' && (
                     <>
                       {initiatedBy === 'customer' ? (

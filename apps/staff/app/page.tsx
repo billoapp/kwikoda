@@ -16,7 +16,6 @@ export default function TabsPage() {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Debug: Check authentication
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -40,21 +39,42 @@ export default function TabsPage() {
     try {
       console.log('🔍 Loading tabs for bar_id:', bar.id);
       
-      const { data: tabsData, error } = await supabase
-        .from('tabs')
-        .select(`
-          *,
-          bar:bars(name),
-          orders:tab_orders(id, total, status, created_at),
-          payments:tab_payments(id, amount, status, created_at)
-        `)
-        .eq('bar_id', bar.id)
-        .order('tab_number', { ascending: false });
+    // Load tabs with bar info
+    const { data: tabsData, error } = await supabase
+      .from('tabs')
+      .select('*, bars(id, name, location)')
+      .eq('bar_id', bar.id)
+      .order('tab_number', { ascending: false });
 
-      if (error) throw error;
+    if (error) throw error;
 
-      console.log('✅ Tabs loaded:', tabsData?.length || 0, 'tabs for bar:', bar.name);
-      setTabs(tabsData || []);
+    // Load orders and payments for each tab
+    const tabsWithDetails = await Promise.all(
+      (tabsData || []).map(async (tab) => {
+        const [ordersResult, paymentsResult] = await Promise.all([
+          supabase
+            .from('tab_orders')
+            .select('id, total, status, created_at')
+            .eq('tab_id', tab.id)
+            .order('created_at', { ascending: false }),
+          
+          supabase
+            .from('tab_payments')
+            .select('id, amount, status, created_at')
+            .eq('tab_id', tab.id)
+            .order('created_at', { ascending: false })
+        ]);
+
+        return {
+          ...tab,
+          bar: tab.bars,
+          orders: ordersResult.data || [],
+          payments: paymentsResult.data || []
+        };
+      })
+    );
+
+    setTabs(tabsWithDetails);
     } catch (error) {
       console.error('Error loading tabs:', error);
     } finally {
