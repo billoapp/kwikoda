@@ -188,9 +188,57 @@ export default function MenuManagementPage() {
     return barProducts.some(item => item.product_id === productId);
   };
 
+  const [isAddingProduct, setIsAddingProduct] = useState<string | null>(null);
+
+  // 🛠️ RETRY FUNCTION (ONLY ONE DECLARATION)
+  const retryWithFreshProduct = async (product: any, price: string) => {
+    try {
+      // Get fresh product data from database
+      const { data: freshProduct, error: fetchError } = await supabase
+        .from('products')
+        .select('id')
+        .eq('id', product.id)
+        .single();
+      
+      if (fetchError || !freshProduct) {
+        console.error('Could not fetch fresh product:', fetchError);
+        alert('Product not found in database. Please try a different product.');
+        return;
+      }
+      
+      console.log('🔄 Retrying with fresh ID:', freshProduct.id);
+      
+      // Retry the insert
+      const { error: retryError } = await supabase
+        .from('bar_products')
+        .insert({
+          bar_id: currentBarId,
+          product_id: freshProduct.id,
+          sale_price: parseFloat(price),
+          active: true
+        });
+      
+      if (retryError) throw retryError;
+      
+      alert('✅ Added to your menu! (Retry successful)');
+      await loadBarMenu();
+      
+    } catch (retryError: any) {
+      console.error('❌ Retry failed:', retryError);
+      alert('Failed after retry: ' + retryError.message);
+    }
+  };
+
   const handleAddToMenu = async (product: any) => {
+    // 🛡️ PREVENT DOUBLE CLICKS
+    if (isAddingProduct === product.id) {
+      console.log('⚠️ Already adding this product, ignoring duplicate click');
+      return;
+    }
+    
     const price = addingPrice[product.id];
     
+    // 🛡️ VALIDATE PRICE EXISTS
     if (!price || price <= 0) {
       alert('Please enter a valid price');
       return;
@@ -201,13 +249,32 @@ export default function MenuManagementPage() {
       return;
     }
 
+    // 🛡️ SET LOCK IMMEDIATELY
+    setIsAddingProduct(product.id);
+    
     try {
+      console.log(`🕒 Starting add process for: ${product.name}`);
+
+      // OPTION 1: Remove RPC call if not strictly needed
+      // const { error: rpcError } = await supabase.rpc('set_bar_context', { 
+      //   p_bar_id: currentBarId 
+      // });
+      // if (rpcError) throw rpcError;
+
+      // OPTION 2: Add timeout between RPC and insert
       const { error: rpcError } = await supabase.rpc('set_bar_context', { 
         p_bar_id: currentBarId 
       });
       
-      if (rpcError) throw rpcError;
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+        throw rpcError;
+      }
+      
+      // ⏱️ SMALL DELAY TO ENSURE RPC COMPLETES
+      await new Promise(resolve => setTimeout(resolve, 100));
 
+      console.log('📤 Inserting into bar_products...');
       const { data: insertData, error } = await supabase
         .from('bar_products')
         .insert({
@@ -218,15 +285,53 @@ export default function MenuManagementPage() {
         })
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Insert error:', {
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+        
+        // 🛡️ HANDLE SPECIFIC ERRORS
+        if (error.code === '23505') { // Unique violation
+          alert('This product is already in your menu!');
+        } else if (error.message.includes('invalid input syntax for type uuid')) {
+          // RETRY WITH FRESH DATA
+          console.log('🔄 Retrying with fresh product data...');
+          await retryWithFreshProduct(product, price);
+        } else {
+          throw error;
+        }
+        return;
+      }
 
-      setAddingPrice({ ...addingPrice, [product.id]: '' });
-      await loadBarMenu();
-      alert('✅ Added to your menu!');
+      console.log('✅ Insert successful:', insertData);
+      
+      // 🛡️ DELAY STATE UPDATE - FIXED TYPE
+      setTimeout(() => {
+        setAddingPrice((prev: Record<string, string>) => ({ ...prev, [product.id]: '' }));
+        setIsAddingProduct(null);
+      }, 300); // Give UI time to update
+      
+      // 🛡️ DELAY RELOAD
+      setTimeout(async () => {
+        await loadBarMenu();
+        alert('✅ Added to your menu!');
+      }, 500);
 
     } catch (error: any) {
-      console.error('Error adding to menu:', error);
-      alert('Failed to add item: ' + error.message);
+      console.error('❌ Final error:', error);
+      
+      // 🛡️ RESET LOCK ON ERROR
+      setTimeout(() => {
+        setIsAddingProduct(null);
+      }, 1000);
+      
+      if (error.message.includes('invalid input syntax for type uuid')) {
+        alert(`Error: Invalid product ID. This might be a temporary issue. Please try again in a moment.`);
+      } else {
+        alert('Failed to add item: ' + error.message);
+      }
     }
   };
 
@@ -460,9 +565,21 @@ export default function MenuManagementPage() {
                             />
                             <button
                               onClick={() => handleAddToMenu(product)}
-                              className="bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600 whitespace-nowrap"
+                              disabled={isAddingProduct === product.id}
+                              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
+                                isAddingProduct === product.id
+                                  ? 'bg-gray-300 cursor-not-allowed'
+                                  : 'bg-orange-500 text-white hover:bg-orange-600'
+                              }`}
                             >
-                              Add
+                              {isAddingProduct === product.id ? (
+                                <span className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  Adding...
+                                </span>
+                              ) : (
+                                'Add'
+                              )}
                             </button>
                           </div>
                         ) : (

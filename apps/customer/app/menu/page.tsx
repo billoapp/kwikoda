@@ -609,36 +609,23 @@ export default function MenuPage() {
                         className="w-full h-32 object-cover rounded-lg mb-2"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
+                          e.currentTarget.style.visibility = 'hidden';
                         }}
                       />
                     ) : (
-                      <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
-                        <span className="text-5xl">
-                          {product.category === 'Beer' ? '🍺' : 
-                           product.category === 'Wine' ? '🍷' :
-                           product.category === 'Spirits' ? '🥃' :
-                           product.category === 'Cocktails' ? '🍸' :
-                           product.category === 'Non-Alcoholic' ? '🥤' : '🍴'}
+                      <div className="w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center">
+                        <span className="text-4xl text-gray-400 font-semibold">
+                          {product.category?.charAt(0) || 'P'}
                         </span>
                       </div>
                     )}
                     
                     <div className="text-center">
-                      <h3 className="font-bold text-gray-800 text-base mb-1 line-clamp-2">
+                      <h3 className="font-bold text-gray-800 text-base mb-3 line-clamp-2">
                         {product.name || 'Product'}
                       </h3>
                       
-                      <span className="inline-block text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded-full mb-2">
-                        {product.category || 'Item'}
-                      </span>
-                      
-                      {product.description && (
-                        <p className="text-xs text-gray-500 mb-2 line-clamp-2">
-                          {product.description}
-                        </p>
-                      )}
-                      
-                      <p className="text-orange-600 font-bold text-xl mb-2">
+                      <p className="text-orange-600 font-bold text-xl mb-3">
                         KSh {barProduct.sale_price.toFixed(0)}
                       </p>
                     </div>
