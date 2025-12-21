@@ -157,6 +157,7 @@ export default function MenuPage() {
             product_id,
             sale_price,
             active,
+            custom_products,
             products (
               id,
               name,
@@ -174,18 +175,41 @@ export default function MenuPage() {
           console.log('✅ Raw products data:', productsData);
           
           // ✅ TRANSFORM: Convert array to single object
-          const transformedProducts = (productsData || []).map(item => ({
-            id: item.id,
-            bar_id: item.bar_id,
-            product_id: item.product_id,
-            sale_price: item.sale_price,
-            active: item.active,
-            product: Array.isArray(item.products) && item.products.length > 0 
-              ? item.products[0]
-              : undefined // Use undefined instead of null
-          })).filter(item => item.product !== undefined); // Filter out items without products
+          const transformedProducts = (productsData || []).map(item => {
+            // Handle custom products (when custom_products is not null)
+            if (item.custom_products) {
+              return {
+                id: item.id,
+                bar_id: item.bar_id,
+                product_id: item.product_id,
+                sale_price: item.sale_price,
+                active: item.active,
+                product: {
+                  id: item.custom_products.id,
+                  name: item.custom_products.name,
+                  description: item.custom_products.description || '',
+                  category: item.custom_products.category || 'Custom',
+                  image_url: item.custom_products.image_url
+                }
+              };
+            }
+            
+            // Handle standard products (when products array exists)
+            if (Array.isArray(item.products) && item.products.length > 0) {
+              return {
+                id: item.id,
+                bar_id: item.bar_id,
+                product_id: item.product_id,
+                sale_price: item.sale_price,
+                active: item.active,
+                product: item.products[0]
+              };
+            }
+            
+            return null; // Will be filtered out
+          }).filter(item => item !== null);
 
-          setBarProducts(transformedProducts);
+          setBarProducts(transformedProducts as BarProduct[]);
         }
 
         // ✅ Load categories
@@ -295,7 +319,8 @@ export default function MenuPage() {
   const categoryOptions = ['All', ...new Set(
     barProducts
       .map(bp => bp.product?.category)
-.filter((cat): cat is string => cat !== undefined && cat !== null && cat.trim() !== '')  )];
+      .filter((cat): cat is string => cat !== undefined && cat !== null && cat.trim() !== '')
+  )];
   
   let filteredProducts = selectedCategory === 'All' 
     ? barProducts 
