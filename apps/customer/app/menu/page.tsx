@@ -19,7 +19,7 @@ interface BarProduct {
   product_id: string;
   sale_price: number;
   active: boolean;
-  products: Product[]; // Array of products from Supabase join
+  products: Product[]; 
 }
 
 export default function MenuPage() {
@@ -30,6 +30,7 @@ export default function MenuPage() {
   const [displayName, setDisplayName] = useState('Your Tab');
   const [barName, setBarName] = useState('Loading...');
   const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -40,6 +41,21 @@ export default function MenuPage() {
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+
+  // Helper function to get display image with category fallback
+  const getDisplayImage = (product: any, categoryName?: string) => {
+    // If product has image, use it
+    if (product.image_url) {
+      return product.image_url;
+    }
+    
+    // Otherwise, find category image from loaded categories
+    const category = categories.find(cat => 
+      cat.name === (categoryName || product.category)
+    );
+    
+    return category?.image_url || null;
+  };
   const [showTimer, setShowTimer] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(300);
 
@@ -106,7 +122,6 @@ export default function MenuPage() {
 
       if (tabError) throw tabError;
 
-      // Handle case where tab doesn't exist or RLS blocks access
       if (!fullTab) {
         sessionStorage.removeItem('currentTab');
         sessionStorage.removeItem('cart');
@@ -117,7 +132,6 @@ export default function MenuPage() {
       setTab(fullTab);
       setBarName(fullTab.bar?.name || 'Bar');
 
-      // Extract display name
       let name = 'Your Tab';
       if (fullTab.notes) {
         try {
@@ -131,8 +145,6 @@ export default function MenuPage() {
       }
       setDisplayName(name);
 
-      // Load menu items for this bar
-      // Load bar products with product details
       if (fullTab.bar?.id) {
         console.log('📋 Loading products for bar:', fullTab.bar.id);
         
@@ -162,7 +174,7 @@ export default function MenuPage() {
           console.error('❌ Error loading products:', productsError);
         } else {
           console.log('✅ Loaded bar products:', productsData);
-          setBarProducts(productsData || []); // ← IMPORTANT: Must use setBarProducts
+          setBarProducts(productsData || []);
         }
       }
 
@@ -183,7 +195,6 @@ export default function MenuPage() {
       if (!paymentsError) setPayments(paymentsData || []);
     } catch (error) {
       console.error('Error loading tab:', error);
-      // Don't redirect on network errors, just show error state
     } finally {
       setLoading(false);
     }
@@ -207,7 +218,6 @@ export default function MenuPage() {
 
       if (error) throw error;
 
-      // Clear all session data
       sessionStorage.removeItem('currentTab');
       sessionStorage.removeItem('cart');
       sessionStorage.removeItem('displayName');
@@ -221,7 +231,6 @@ export default function MenuPage() {
       alert('Failed to close tab. Please ask staff for assistance.');
     }
   };
-
 
   const handleApproveOrder = async (orderId: string) => {
     setApprovingOrder(orderId);
@@ -258,24 +267,26 @@ export default function MenuPage() {
     }
   };
 
-  const categories = ['All', ...new Set(
-  barProducts
-    .map(bp => bp.products[0]?.category)
-    .filter(Boolean)
-)];  
+  // ✅ FIXED: Access products as object, not array
+  const categoryOptions = ['All', ...new Set(
+    barProducts
+      .map(bp => bp.products[0]?.category)
+      .filter(Boolean)
+  )];
+  
   let filteredProducts = selectedCategory === 'All' 
     ? barProducts 
     : barProducts.filter(bp => bp.products[0]?.category === selectedCategory);
   
-    // Search filter
-    if (searchQuery.trim()) {
-      filteredProducts = filteredProducts.filter(bp => 
-        bp.products[0]?.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+  if (searchQuery.trim()) {
+    filteredProducts = filteredProducts.filter(bp => 
+      bp.products[0]?.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
 
+  // ✅ FIXED: Access products as object, not array
   const addToCart = (barProduct: BarProduct) => {
-    const product = barProduct.products[0]; // Get first product from array
+    const product = barProduct.products[0];
     const existing = cart.find(c => c.bar_product_id === barProduct.id);
     const newCart = existing
       ? cart.map(c => c.bar_product_id === barProduct.id ? {...c, quantity: c.quantity + 1} : c)
@@ -283,7 +294,7 @@ export default function MenuPage() {
           bar_product_id: barProduct.id,
           product_id: barProduct.product_id,
           name: product.name,
-          price: barProduct.sale_price, // ← Bar-specific price!
+          price: barProduct.sale_price,
           category: product.category,
           image_url: product.image_url,
           quantity: 1
@@ -292,9 +303,9 @@ export default function MenuPage() {
     sessionStorage.setItem('cart', JSON.stringify(newCart));
   };
 
-  const updateCartQuantity = (id: number, delta: number) => {
+  const updateCartQuantity = (barProductId: string, delta: number) => {
     const newCart = cart.map(item => {
-      if (item.id === id) {
+      if (item.bar_product_id === barProductId) {
         const newQty = item.quantity + delta;
         return newQty > 0 ? {...item, quantity: newQty} : item;
       }
@@ -309,7 +320,7 @@ export default function MenuPage() {
     setSubmittingOrder(true);
     try {
       const orderItems = cart.map(item => ({
-        product_id: item.id,
+        product_id: item.product_id,
         name: item.name,
         quantity: item.quantity,
         price: item.price,
@@ -407,7 +418,7 @@ export default function MenuPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center p-8 max-w-md">
-          <div className="text-5xl mb-4">🔍</div>
+          <div className="text-5xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Tab Not Found</h2>
           <p className="text-gray-600 mb-6">This tab may have been closed, expired, or is no longer accessible.</p>
           <button
@@ -514,7 +525,7 @@ export default function MenuPage() {
             </div>
             
             <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar mb-4">
-              {categories.map(cat => (
+              {categoryOptions.map(cat => (
                 <button 
                   key={cat} 
                   onClick={() => setSelectedCategory(cat)} 
@@ -525,6 +536,7 @@ export default function MenuPage() {
               ))}
             </div>
             
+            {/* ✅ FIXED MENU DISPLAY */}
             <div className="grid grid-cols-2 gap-3 mb-20">
               {filteredProducts.map(barProduct => (
                 <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
@@ -535,30 +547,42 @@ export default function MenuPage() {
                       className="w-full h-32 object-cover rounded-lg mb-2"
                     />
                   ) : (
-                    <div className="w-full h-32 bg-gray-200 rounded-lg mb-2 flex items-center justify-center">
+                    <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
                       <span className="text-5xl">🍺</span>
                     </div>
                   )}
+                  
                   <div className="text-center">
-                    <h3 className="font-semibold text-gray-800 text-sm mb-1">
-                      {barProduct.products[0]?.name}
+                    {/* Product Name - BOLD AND PROMINENT */}
+                    <h3 className="font-bold text-gray-800 text-base mb-1 line-clamp-2">
+                      {barProduct.products[0]?.name || 'Product'}
                     </h3>
+                    
+                    {/* Category Badge */}
+                    <span className="inline-block text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded-full mb-2">
+                      {barProduct.products[0]?.category || 'Item'}
+                    </span>
+                    
+                    {/* Description (if available) */}
                     {barProduct.products[0]?.description && (
-                      <p className="text-xs text-gray-500 mb-1 line-clamp-2">
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-2">
                         {barProduct.products[0].description}
                       </p>
                     )}
-                    <p className="text-xs text-gray-400 mb-1">{barProduct.products[0]?.category}</p>
-                    <p className="text-orange-600 font-bold text-lg">
-                      KSh {barProduct.sale_price.toFixed(2)}
+                    
+                    {/* Price - LARGE AND VISIBLE */}
+                    <p className="text-orange-600 font-bold text-xl mb-2">
+                      KSh {barProduct.sale_price.toFixed(0)}
                     </p>
                   </div>
+                  
+                  {/* Add to Cart Button */}
                   <button 
                     onClick={() => addToCart(barProduct)} 
-                    className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 mt-2"
+                    className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 font-medium transition"
                   >
                     <Plus size={18} />
-                    <span className="text-sm font-medium">Add</span>
+                    <span className="text-sm">Add to Cart</span>
                   </button>
                 </div>
               ))}
@@ -699,7 +723,6 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* Close Tab Section - Only show if balance is 0 and has orders */}
       {balance === 0 && orders.length > 0 && (
         <div className="bg-white p-4 min-h-screen">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
@@ -733,7 +756,6 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* Close Tab Confirmation Modal */}
       {showCloseConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
@@ -771,18 +793,20 @@ export default function MenuPage() {
             </div>
             <div className="space-y-3 mb-4">
               {cart.map(item => (
-                <div key={item.id} className="flex items-center justify-between">
+                <div key={item.bar_product_id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">{item.emoji || '🍽️'}</span>
+                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                      <span className="text-2xl">🍺</span>
+                    </div>
                     <div>
                       <p className="font-semibold">{item.name}</p>
                       <p className="text-sm text-gray-600">KSh {item.price}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateCartQuantity(item.id, -1)} className="bg-gray-100 p-1 rounded"><Minus size={16} /></button>
+                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-gray-100 p-1 rounded"><Minus size={16} /></button>
                     <span className="font-bold w-8 text-center">{item.quantity}</span>
-                    <button onClick={() => updateCartQuantity(item.id, 1)} className="bg-orange-500 text-white p-1 rounded"><Plus size={16} /></button>
+                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-orange-500 text-white p-1 rounded"><Plus size={16} /></button>
                   </div>
                 </div>
               ))}
@@ -823,22 +847,22 @@ export default function MenuPage() {
         }
         
         @keyframes pulse-number {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            }
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
     
-            .animate-fadeIn {
-            animation: fadeIn 0.5s ease-out;
-            }
-            
-            .animate-pulse-slow {
-            animation: pulse-slow 3s ease-in-out infinite;
-            }
-            
-            .animate-pulse-number {
-            animation: pulse-number 2s ease-in-out infinite;
-            }
-        `}</style>
-      </div>
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out;
+        }
+        
+        .animate-pulse-slow {
+          animation: pulse-slow 3s ease-in-out infinite;
+        }
+        
+        .animate-pulse-number {
+          animation: pulse-number 2s ease-in-out infinite;
+        }
+      `}</style>
+    </div>
   );
 }

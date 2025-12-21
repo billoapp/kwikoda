@@ -1,4 +1,4 @@
-// apps/staff/app/menu/page.tsx - Real product catalog from database
+// apps/staff/app/menu/page.tsx - With category image fallback
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -33,7 +33,21 @@ export default function MenuManagementPage() {
     price: '' 
   });
 
-  // DEBUG: Log all state changes
+  // Helper function to get display image with category fallback
+  const getDisplayImage = (product: any, categoryName?: string) => {
+    // If product has image, use it
+    if (product.image_url) {
+      return product.image_url;
+    }
+    
+    // Otherwise, find category image
+    const category = categories.find(cat => 
+      cat.name === (categoryName || product.category)
+    );
+    
+    return category?.image_url || null;
+  };
+
   useEffect(() => {
     console.log('🔍 STATE CHECK:', {
       loading,
@@ -45,7 +59,6 @@ export default function MenuManagementPage() {
     });
   }, [loading, barLoading, currentBarId, userBars, barProducts]);
 
-  // Check authentication
   useEffect(() => {
     const checkAuth = async () => {
       console.log('🔐 checkAuth running...', { barLoading });
@@ -66,7 +79,6 @@ export default function MenuManagementPage() {
       
       if (!currentBarId) {
         console.log('⚠️ No current bar set, waiting...');
-        // Set loading to false if no bars available
         if (userBars.length === 0) {
           console.log('❌ User has no bars');
           setLoading(false);
@@ -80,7 +92,6 @@ export default function MenuManagementPage() {
     checkAuth();
   }, [barLoading, currentBarId, router, userBars.length]);
 
-  // Load catalog data when bar is selected
   useEffect(() => {
     console.log('📦 Effect triggered:', { currentBarId, barLoading });
     
@@ -111,7 +122,7 @@ export default function MenuManagementPage() {
         throw suppliersError;
       }
 
-      // Load categories
+      // Load categories WITH image_url
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
         .select('*')
@@ -165,7 +176,6 @@ export default function MenuManagementPage() {
 
       console.log('📋 Loading bar menu for:', currentBarId);
 
-      // Set RLS context
       const { error: rpcError } = await supabase.rpc('set_bar_context', { 
         p_bar_id: currentBarId
       });
@@ -174,7 +184,6 @@ export default function MenuManagementPage() {
         console.error('⚠️ RPC error in loadBarMenu:', rpcError);
       }
 
-      // Load bar's menu items - simplified query
       const { data, error } = await supabase
         .from('bar_products')
         .select(`
@@ -212,17 +221,14 @@ export default function MenuManagementPage() {
   };
 
   const filteredProducts = products.filter(product => {
-    // Filter by supplier
     if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
       return false;
     }
 
-    // Filter by category
     if (selectedCategory !== 'all' && product.category !== selectedCategory) {
       return false;
     }
 
-    // Filter by search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
@@ -292,7 +298,6 @@ export default function MenuManagementPage() {
 
       setAddingPrice({ ...addingPrice, [product.id]: '' });
       
-      // Reload the menu to show the new item
       console.log('🔄 Reloading menu...');
       await loadBarMenu();
       
@@ -308,7 +313,6 @@ export default function MenuManagementPage() {
     if (!window.confirm('Remove this item from your menu?')) return;
 
     try {
-      // Set RLS context for bar isolation
       if (currentBarId) {
         await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
       }
@@ -336,7 +340,6 @@ export default function MenuManagementPage() {
     }
 
     try {
-      // Create as product
       const { data: productData, error: productError } = await supabase
         .from('products')
         .insert({
@@ -352,7 +355,6 @@ export default function MenuManagementPage() {
 
       if (productError) throw productError;
 
-      // Add to bar menu
       if (currentBarId) {
         await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
       }
@@ -380,7 +382,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // Loading state
   if (loading || barLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -395,7 +396,6 @@ export default function MenuManagementPage() {
     );
   }
 
-  // No bar selected state
   if (!currentBarId || userBars.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -439,7 +439,6 @@ export default function MenuManagementPage() {
           </p>
         </div>
 
-        {/* Search & Filter */}
         <div className="p-4 bg-white border-b sticky top-0 z-10">
           <div className="relative mb-3">
             <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -479,7 +478,6 @@ export default function MenuManagementPage() {
           </div>
         </div>
 
-        {/* Products List */}
         <div className="p-4 space-y-3">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12">
@@ -489,12 +487,12 @@ export default function MenuManagementPage() {
           ) : (
             filteredProducts.map(product => {
               const alreadyInMenu = isProductInMenu(product.id);
-              const displayImage = product.image_url;
+              const displayImage = getDisplayImage(product);
               
               return (
                 <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
                   <div className="flex gap-4">
-                    {displayImage && (
+                    {displayImage ? (
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img 
                           src={displayImage} 
@@ -504,6 +502,10 @@ export default function MenuManagementPage() {
                             e.currentTarget.style.display = 'none';
                           }}
                         />
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                        <span className="text-3xl">🍺</span>
                       </div>
                     )}
 
@@ -592,7 +594,6 @@ export default function MenuManagementPage() {
       </div>
 
       <div className="p-4 space-y-6">
-        {/* Browse Catalog */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
@@ -605,7 +606,6 @@ export default function MenuManagementPage() {
             </button>
           </div>
 
-          {/* Suppliers Grid */}
           <div className="grid grid-cols-2 gap-3 mb-4">
             {suppliers.map(supplier => {
               const productCount = products.filter(p => p.supplier_id === supplier.id).length;
@@ -636,7 +636,6 @@ export default function MenuManagementPage() {
             })}
           </div>
 
-          {/* Categories Quick Filter */}
           <div className="flex gap-2 overflow-x-auto pb-2">
             {categories.slice(0, 4).map(cat => (
               <button
@@ -659,7 +658,6 @@ export default function MenuManagementPage() {
           </div>
         </div>
 
-        {/* Your Menu */}
         <div>
           <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
           {barProducts.length === 0 ? (
@@ -672,13 +670,11 @@ export default function MenuManagementPage() {
             <div className="bg-white rounded-xl shadow-sm divide-y">
               {barProducts.map(item => {
                 const product = item.products;
-                const displayImage = product?.image_url;
-                
-                console.log('Rendering menu item:', item);
+                const displayImage = getDisplayImage(product, product?.category);
                 
                 return (
                   <div key={item.id} className="p-4 flex items-center gap-4">
-                    {displayImage && (
+                    {displayImage ? (
                       <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img 
                           src={displayImage} 
@@ -688,6 +684,10 @@ export default function MenuManagementPage() {
                             e.currentTarget.style.display = 'none';
                           }}
                         />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                        <span className="text-3xl">🍺</span>
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -710,7 +710,6 @@ export default function MenuManagementPage() {
           )}
         </div>
 
-        {/* Add Custom Item */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-gray-800">Custom Items</h2>
