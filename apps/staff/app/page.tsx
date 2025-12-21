@@ -39,42 +39,42 @@ export default function TabsPage() {
     try {
       console.log('🔍 Loading tabs for bar_id:', bar.id);
       
-    // Load tabs with bar info
-    const { data: tabsData, error } = await supabase
-      .from('tabs')
-      .select('*, bars(id, name, location)')
-      .eq('bar_id', bar.id)
-      .order('tab_number', { ascending: false });
+      const { data: tabsData, error } = await supabase
+        .from('tabs')
+        .select('*, bars(id, name, location)')
+        .eq('bar_id', bar.id)
+        .order('tab_number', { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Load orders and payments for each tab
-    const tabsWithDetails = await Promise.all(
-      (tabsData || []).map(async (tab) => {
-        const [ordersResult, paymentsResult] = await Promise.all([
-          supabase
-            .from('tab_orders')
-            .select('id, total, status, created_at')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false }),
-          
-          supabase
-            .from('tab_payments')
-            .select('id, amount, status, created_at')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false })
-        ]);
+      console.log('✅ Tabs loaded:', tabsData?.length || 0, 'tabs for bar:', bar.name);
 
-        return {
-          ...tab,
-          bar: tab.bars,
-          orders: ordersResult.data || [],
-          payments: paymentsResult.data || []
-        };
-      })
-    );
+      const tabsWithDetails = await Promise.all(
+        (tabsData || []).map(async (tab) => {
+          const [ordersResult, paymentsResult] = await Promise.all([
+            supabase
+              .from('tab_orders')
+              .select('id, total, status, created_at')
+              .eq('tab_id', tab.id)
+              .order('created_at', { ascending: false }),
+            
+            supabase
+              .from('tab_payments')
+              .select('id, amount, status, created_at')
+              .eq('tab_id', tab.id)
+              .order('created_at', { ascending: false })
+          ]);
 
-    setTabs(tabsWithDetails);
+          return {
+            ...tab,
+            bar: tab.bars,
+            orders: ordersResult.data || [],
+            payments: paymentsResult.data || []
+          };
+        })
+      );
+
+      setTabs(tabsWithDetails);
     } catch (error) {
       console.error('Error loading tabs:', error);
     } finally {
@@ -151,175 +151,174 @@ export default function TabsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 pb-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">{bar?.name || 'Bar'} Staff</h1>
-            <p className="text-orange-100 text-sm">{user?.email}</p>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={loadTabs}
-              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-            >
-              <RefreshCw size={24} />
-            </button>
-            <button 
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-            >
-              {showMenu ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Users size={16} className="text-orange-100" />
-              <span className="text-sm text-orange-100">Open Tabs</span>
+    <div className="min-h-screen bg-gray-50 flex justify-center">
+      {/* Main container with 80% width */}
+      <div className="w-full" style={{ maxWidth: '80%' }}>
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 pb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold">{bar?.name || 'Bar'}</h1>
+              <p className="text-orange-100 text-sm">{user?.email}</p>
             </div>
-            <p className="text-2xl font-bold">{stats.totalTabs}</p>
-          </div>
-          <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertCircle size={16} className="text-orange-100" />
-              <span className="text-sm text-orange-100">Pending Orders</span>
-            </div>
-            <p className="text-2xl font-bold">{stats.pendingOrders}</p>
-          </div>
-        </div>
-      </div>
-
-      {showMenu && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-30" onClick={() => setShowMenu(false)}>
-          <div className="absolute right-0 top-0 h-full w-64 bg-white shadow-xl p-6" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowMenu(false)} className="mb-6">
-              <X size={24} />
-            </button>
-            <nav className="space-y-4">
-              <button onClick={() => { router.push('/'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
-                <Users size={20} />
-                Active Tabs
-              </button>
-              <button onClick={() => { router.push('/reports'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
-                <DollarSign size={20} />
-                Reports & Export
-              </button>
-              <button onClick={() => { router.push('/menu'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
-                <Menu size={20} />
-                Menu Management
-              </button>
-              <button onClick={() => { router.push('/settings'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
-                <Menu size={20} />
-                Settings
-              </button>
-              <hr className="my-4" />
-              <button onClick={signOut} className="flex items-center gap-3 w-full text-left py-2 font-medium text-red-600">
-                <LogOut size={20} />
-                Sign Out
-              </button>
-            </nav>
-          </div>
-        </div>
-      )}
-
-      <div className="p-4 bg-white border-b sticky top-0 z-10">
-        <div className="flex gap-2 mb-3">
-          <div className="relative flex-1">
-            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tab name or number..."
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-            />
-          </div>
-        </div>
-        
-        <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-          {['all', 'open', 'closed'].map(status => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                filterStatus === status 
-                  ? 'bg-orange-500 text-white' 
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-4 space-y-3 pb-24">
-        {filteredTabs.length === 0 ? (
-          <div className="text-center py-12">
-            <Users size={48} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">No tabs found</p>
-          </div>
-        ) : (
-          filteredTabs.map(tab => {
-            const balance = getTabBalance(tab);
-            const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
-            
-            return (
-              <div 
-                key={tab.id} 
-                onClick={() => router.push(`/tabs/${tab.id}`)}
-                className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md cursor-pointer transition"
+            <div className="flex gap-2">
+              <button 
+                onClick={loadTabs}
+                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-xl font-bold text-gray-800">{getDisplayName(tab)}</h3>
-                      {hasPendingOrders && (
-                        <span className="flex items-center gap-1 bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
-                          <AlertCircle size={12} />
-                          NEW ORDER!
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500">{tab.owner_identifier || 'Guest'}</p>
-                    <p className="text-xs text-gray-400 mt-1">Opened {timeAgo(tab.opened_at)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-2xl font-bold ${balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      KSh {balance.toFixed(0)}
-                    </p>
-                    <p className="text-xs text-gray-500">Balance</p>
-                  </div>
-                </div>
+                <RefreshCw size={24} />
+              </button>
+              <button 
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+              >
+                {showMenu ? <X size={24} /> : <Menu size={24} />}
+              </button>
+            </div>
+          </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <span>{tab.orders?.length || 0} orders</span>
-                    <span>•</span>
-                    <span className="text-yellow-600 font-medium">
-                      {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
-                    </span>
-                  </div>
-                  <ArrowRight size={20} className="text-gray-400" />
-                </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Users size={16} className="text-orange-100" />
+                <span className="text-sm text-orange-100">Open Tabs</span>
               </div>
-            );
-          })
-        )}
-      </div>
+              <p className="text-2xl font-bold">{stats.totalTabs}</p>
+            </div>
+            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle size={16} className="text-orange-100" />
+                <span className="text-sm text-orange-100">Pending Orders</span>
+              </div>
+              <p className="text-2xl font-bold">{stats.pendingOrders}</p>
+            </div>
+          </div>
+        </div>
 
-      <style jsx global>{`
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+        {showMenu && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-30" onClick={() => setShowMenu(false)}>
+            <div className="absolute right-0 top-0 h-full w-64 bg-white shadow-xl p-6" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setShowMenu(false)} className="mb-6">
+                <X size={24} />
+              </button>
+              <nav className="space-y-4">
+                <button onClick={() => { router.push('/'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
+                  <Users size={20} />
+                  Active Tabs
+                </button>
+                <button onClick={() => { router.push('/reports'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
+                  <DollarSign size={20} />
+                  Reports & Export
+                </button>
+                <button onClick={() => { router.push('/menu'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
+                  <Menu size={20} />
+                  Menu Management
+                </button>
+                <button onClick={() => { router.push('/settings'); setShowMenu(false); }} className="flex items-center gap-3 w-full text-left py-2 font-medium">
+                  <Menu size={20} />
+                  Settings
+                </button>
+                <hr className="my-4" />
+                <button onClick={signOut} className="flex items-center gap-3 w-full text-left py-2 font-medium text-red-600">
+                  <LogOut size={20} />
+                  Sign Out
+                </button>
+              </nav>
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 bg-white border-b sticky top-0 z-10">
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tab name or number..."
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+            {['all', 'open', 'closed'].map(status => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                  filterStatus === status 
+                    ? 'bg-orange-500 text-white' 
+                    : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Grid Layout - 4 columns */}
+        <div className="p-4 pb-24">
+          {filteredTabs.length === 0 ? (
+            <div className="text-center py-12">
+              <Users size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">No tabs found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredTabs.map(tab => {
+                const balance = getTabBalance(tab);
+                const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
+                
+                return (
+                  <div 
+                    key={tab.id} 
+                    onClick={() => router.push(`/tabs/${tab.id}`)}
+                    className="bg-white rounded-xl p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105"
+                  >
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-lg font-bold text-gray-800 truncate">{getDisplayName(tab)}</h3>
+                        {hasPendingOrders && (
+                          <span className="flex items-center justify-center w-6 h-6 bg-yellow-400 rounded-full animate-pulse">
+                            <AlertCircle size={14} className="text-yellow-900" />
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400">Opened {timeAgo(tab.opened_at)}</p>
+                    </div>
+
+                    <div className="text-center py-4 bg-orange-50 rounded-lg mb-3">
+                      <p className={`text-2xl font-bold ${balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                        KSh {balance.toFixed(0)}
+                      </p>
+                      <p className="text-xs text-gray-500">Balance</p>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-gray-600 pt-3 border-t border-gray-100">
+                      <span>{tab.orders?.length || 0} orders</span>
+                      <span className="text-yellow-600 font-medium">
+                        {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <style jsx global>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+        `}</style>
+      </div>
     </div>
   );
 }

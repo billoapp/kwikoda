@@ -23,7 +23,6 @@ export default function TabDetailPage() {
     setLoading(true);
     
     try {
-      // ✅ FIXED: Load tab with proper query
       const { data: tabData, error: tabError } = await supabase
         .from('tabs')
         .select('*, bars(id, name, location)')
@@ -32,7 +31,6 @@ export default function TabDetailPage() {
 
       if (tabError) throw tabError;
 
-      // ✅ Load orders and payments separately
       const [ordersResult, paymentsResult] = await Promise.all([
         supabase
           .from('tab_orders')
@@ -49,7 +47,7 @@ export default function TabDetailPage() {
 
       const fullTabData = {
         ...tabData,
-        bar: tabData.bars, // Normalize bar data
+        bar: tabData.bars,
         orders: ordersResult.data || [],
         payments: paymentsResult.data || []
       };
@@ -57,15 +55,12 @@ export default function TabDetailPage() {
       console.log('✅ Tab loaded:', fullTabData);
       setTab(fullTabData);
 
-      // Extract display name from notes
       let name = `Tab ${tabData.tab_number || 'Unknown'}`;
       if (tabData.notes) {
         try {
           const notes = JSON.parse(tabData.notes);
           name = notes.display_name || name;
-        } catch (e) {
-          // Keep default name if notes parsing fails
-        }
+        } catch (e) {}
       }
       setDisplayName(name);
 
@@ -221,204 +216,202 @@ export default function TabDetailPage() {
     .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-        <div className="flex items-center justify-between mb-4">
-          <button 
-            onClick={() => router.push('/')}
-            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-          >
-            <ArrowRight size={24} className="transform rotate-180" />
-          </button>
-          <button 
-            onClick={loadTabData}
-            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-          >
-            <RefreshCw size={24} />
-          </button>
-        </div>
-        
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
-            <p className="text-orange-100">{tab.bar?.name || 'Bar'}</p>
-            <p className="text-sm text-orange-100 mt-1">Opened {timeAgo(tab.opened_at)}</p>
-          </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            tab.status === 'open' ? 'bg-green-500' :
-            tab.status === 'closing' ? 'bg-yellow-500' :
-            'bg-gray-500'
-          }`}>
-            {tab.status.toUpperCase()}
-          </span>
-        </div>
-
-        {/* Balance Summary */}
-        <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2 text-sm">
-            <span className="text-orange-100">Total Orders</span>
-            <span className="font-semibold">KSh {ordersTotal.toFixed(0)}</span>
-          </div>
-          <div className="flex items-center justify-between mb-2 text-sm">
-            <span className="text-orange-100">Payments</span>
-            <span className="font-semibold">- KSh {paymentsTotal.toFixed(0)}</span>
-          </div>
-          <div className="border-t border-white border-opacity-30 my-2"></div>
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-lg">Balance</span>
-            <span className={`text-2xl font-bold ${balance > 0 ? '' : 'text-green-300'}`}>
-              KSh {balance.toFixed(0)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Orders Section */}
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-gray-800">Orders</h2>
-          <button
-            onClick={() => router.push(`/tabs/${tabId}/add-order`)}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600"
-          >
-            <Plus size={20} />
-            Add Order
-          </button>
-        </div>
-        
-        <div className="space-y-3 mb-6">
-          {(!tab.orders || tab.orders.length === 0) ? (
-            <div className="bg-white rounded-xl p-6 text-center text-gray-500">
-              <p className="text-sm">No orders yet</p>
-            </div>
-          ) : (
-            tab.orders.map((order: any) => {
-              const orderItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-              const initiatedBy = order.initiated_by || 'customer';
-              const orderStyle = getOrderStyle(initiatedBy);
-              
-              return (
-                <div key={order.id} className={`bg-white rounded-xl p-4 shadow-sm ${orderStyle.borderColor}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {orderStyle.icon}
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${orderStyle.labelColor}`}>
-                        {orderStyle.label}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      {order.status === 'pending' ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
-                          <Clock size={12} />
-                          {initiatedBy === 'staff' ? 'Awaiting Customer' : 'Pending'}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
-                          <CheckCircle size={12} />
-                          Served
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="space-y-1 mb-2">
-                        {orderItems.map((item: any, idx: number) => (
-                          <p key={idx} className="text-sm text-gray-700">
-                            {item.quantity}x {item.name}
-                          </p>
-                        ))}
-                      </div>
-                      <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>
-                    </div>
-                    <div className="text-right ml-4">
-                      <p className="font-bold text-orange-600">KSh {parseFloat(order.total).toFixed(0)}</p>
-                    </div>
-                  </div>
-                  
-                  {order.status === 'pending' && (
-                    <>
-                      {initiatedBy === 'customer' ? (
-                        <button
-                          onClick={() => handleMarkServed(order.id, initiatedBy)}
-                          className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600"
-                        >
-                          Mark as Served
-                        </button>
-                      ) : (
-                        <div className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-medium text-center">
-                          ⏳ Waiting for customer approval
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Payments Section */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-gray-800">Payments</h2>
-            <button
-              onClick={handleAddCashPayment}
-              className="text-sm text-orange-600 font-medium"
+    <div className="min-h-screen bg-gray-50 flex justify-center">
+      {/* Main container with 70% width */}
+      <div className="w-full" style={{ maxWidth: '70%' }}>
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
+          <div className="flex items-center justify-between mb-4">
+            <button 
+              onClick={() => router.push('/')}
+              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
             >
-              + Add Cash
+              <ArrowRight size={24} className="transform rotate-180" />
+            </button>
+            <button 
+              onClick={loadTabData}
+              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+            >
+              <RefreshCw size={24} />
             </button>
           </div>
           
-          {(!tab.payments || tab.payments.length === 0) ? (
-            <div className="bg-white rounded-xl p-6 text-center text-gray-500">
-              <Wallet size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No payments yet</p>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
+              <p className="text-orange-100">{tab.bar?.name || 'Bar'}</p>
+              <p className="text-sm text-orange-100 mt-1">Opened {timeAgo(tab.opened_at)}</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {tab.payments.map((payment: any) => (
-                <div key={payment.id} className="bg-white rounded-xl p-4 shadow-sm flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {payment.method === 'mpesa' ? (
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <Phone size={20} className="text-green-600" />
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Wallet size={20} className="text-blue-600" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold text-gray-800 capitalize">{payment.method}</p>
-                      <p className="text-sm text-gray-500">{timeAgo(payment.created_at)}</p>
-                    </div>
-                  </div>
-                  <p className="font-bold text-green-600">+ KSh {parseFloat(payment.amount).toFixed(0)}</p>
-                </div>
-              ))}
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+              tab.status === 'open' ? 'bg-green-500' :
+              tab.status === 'closing' ? 'bg-yellow-500' :
+              'bg-gray-500'
+            }`}>
+              {tab.status.toUpperCase()}
+            </span>
+          </div>
+
+          <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2 text-sm">
+              <span className="text-orange-100">Total Orders</span>
+              <span className="font-semibold">KSh {ordersTotal.toFixed(0)}</span>
             </div>
-          )}
+            <div className="flex items-center justify-between mb-2 text-sm">
+              <span className="text-orange-100">Payments</span>
+              <span className="font-semibold">- KSh {paymentsTotal.toFixed(0)}</span>
+            </div>
+            <div className="border-t border-white border-opacity-30 my-2"></div>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-lg">Balance</span>
+              <span className={`text-2xl font-bold ${balance > 0 ? '' : 'text-green-300'}`}>
+                KSh {balance.toFixed(0)}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Actions */}
-        <div className="space-y-3 pb-6">
-          <button
-            onClick={handleCloseTab}
-            className={`w-full py-4 rounded-xl font-semibold ${
-              balance === 0 
-                ? 'bg-green-500 text-white hover:bg-green-600' 
-                : 'bg-orange-500 text-white hover:bg-orange-600'
-            }`}
-          >
-            {balance === 0 ? 'Close Tab' : `Close Tab (Write Off KSh ${balance.toFixed(0)})`}
-          </button>
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-gray-800">Orders</h2>
+            <button
+              onClick={() => router.push(`/tabs/${tabId}/add-order`)}
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600"
+            >
+              <Plus size={20} />
+              Add Order
+            </button>
+          </div>
           
-          <button className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300">
-            Transfer Tab
-          </button>
+          <div className="space-y-3 mb-6">
+            {(!tab.orders || tab.orders.length === 0) ? (
+              <div className="bg-white rounded-xl p-6 text-center text-gray-500">
+                <p className="text-sm">No orders yet</p>
+              </div>
+            ) : (
+              tab.orders.map((order: any) => {
+                const orderItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                const initiatedBy = order.initiated_by || 'customer';
+                const orderStyle = getOrderStyle(initiatedBy);
+                
+                return (
+                  <div key={order.id} className={`bg-white rounded-xl p-4 shadow-sm ${orderStyle.borderColor}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {orderStyle.icon}
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${orderStyle.labelColor}`}>
+                          {orderStyle.label}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        {order.status === 'pending' ? (
+                          <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
+                            <Clock size={12} />
+                            {initiatedBy === 'staff' ? 'Awaiting Customer' : 'Pending'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
+                            <CheckCircle size={12} />
+                            Served
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="space-y-1 mb-2">
+                          {orderItems.map((item: any, idx: number) => (
+                            <p key={idx} className="text-sm text-gray-700">
+                              {item.quantity}x {item.name}
+                            </p>
+                          ))}
+                        </div>
+                        <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="font-bold text-orange-600">KSh {parseFloat(order.total).toFixed(0)}</p>
+                      </div>
+                    </div>
+                    
+                    {order.status === 'pending' && (
+                      <>
+                        {initiatedBy === 'customer' ? (
+                          <button
+                            onClick={() => handleMarkServed(order.id, initiatedBy)}
+                            className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600"
+                          >
+                            Mark as Served
+                          </button>
+                        ) : (
+                          <div className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-medium text-center">
+                            ⏳ Waiting for customer approval
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-800">Payments</h2>
+              <button
+                onClick={handleAddCashPayment}
+                className="text-sm text-orange-600 font-medium"
+              >
+                + Add Cash
+              </button>
+            </div>
+            
+            {(!tab.payments || tab.payments.length === 0) ? (
+              <div className="bg-white rounded-xl p-6 text-center text-gray-500">
+                <Wallet size={32} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No payments yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tab.payments.map((payment: any) => (
+                  <div key={payment.id} className="bg-white rounded-xl p-4 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {payment.method === 'mpesa' ? (
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Phone size={20} className="text-green-600" />
+                        </div>
+                      ) : (
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Wallet size={20} className="text-blue-600" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-semibold text-gray-800 capitalize">{payment.method}</p>
+                        <p className="text-sm text-gray-500">{timeAgo(payment.created_at)}</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-green-600">+ KSh {parseFloat(payment.amount).toFixed(0)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 pb-6">
+            <button
+              onClick={handleCloseTab}
+              className={`w-full py-4 rounded-xl font-semibold ${
+                balance === 0 
+                  ? 'bg-green-500 text-white hover:bg-green-600' 
+                  : 'bg-orange-500 text-white hover:bg-orange-600'
+              }`}
+            >
+              {balance === 0 ? 'Close Tab' : `Close Tab (Write Off KSh ${balance.toFixed(0)})`}
+            </button>
+            
+            <button className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300">
+              Transfer Tab
+            </button>
+          </div>
         </div>
       </div>
     </div>
