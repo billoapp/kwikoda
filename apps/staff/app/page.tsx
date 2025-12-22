@@ -1,3 +1,4 @@
+// /apps/staff/app/page.tsx - COMPLETE FILE WITH REALTIME NOTIFICATIONS
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -5,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
+import { getStaffNotificationManager } from '@/lib/notifications';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function TabsPage() {
   const router = useRouter();
@@ -15,6 +18,9 @@ export default function TabsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [realtimeChannel, setRealtimeChannel] = useState<RealtimeChannel | null>(null);
+
+  const notificationManager = getStaffNotificationManager();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -28,10 +34,165 @@ export default function TabsPage() {
   useEffect(() => {
     if (bar) {
       loadTabs();
-      const interval = setInterval(loadTabs, 10000);
+      // Reduced polling to 60s since we have realtime
+      const interval = setInterval(loadTabs, 60000);
       return () => clearInterval(interval);
     }
   }, [bar]);
+
+  // Realtime subscriptions for staff notifications
+  useEffect(() => {
+    if (!bar?.id) return;
+
+    console.log('🔌 Staff: Setting up realtime subscriptions for bar:', bar.id);
+
+    // Create a channel for this bar's orders
+    const channel = supabase
+      .channel(`bar_${bar.id}_staff`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'tab_orders'
+        },
+        async (payload) => {
+          console.log('🆕 Staff: New order detected:', payload);
+          const newOrder = payload.new as any;
+
+          // Verify this order belongs to a tab in our bar
+          const { data: tabData } = await supabase
+            .from('tabs')
+            .select('bar_id, tab_number')
+            .eq('id', newOrder.tab_id)
+            .single();
+
+          if (tabData?.bar_id === bar.id) {
+            // Check if customer-initiated order
+            if (newOrder.initiated_by === 'customer' || !newOrder.initiated_by) {
+              console.log('🔔 Customer order received - notify staff');
+              notificationManager.triggerNotification('new_order');
+
+              // Show browser notification
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('New Customer Order! 🍺', {
+                  body: `New order from Tab #${tabData?.tab_number || 'Unknown'}`,
+                  tag: `staff_order_${newOrder.id}`,
+                  requireInteraction: true
+                });
+              }
+            }
+
+            // Reload tabs to show new order
+            loadTabs();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tab_orders'
+        },
+        async (payload) => {
+          console.log('🔄 Staff: Order updated:', payload);
+          const updatedOrder = payload.new as any;
+          const oldOrder = payload.old as any;
+
+          // Verify this order belongs to our bar
+          const { data: tabData } = await supabase
+            .from('tabs')
+            .select('bar_id, tab_number')
+            .eq('id', updatedOrder.tab_id)
+            .single();
+
+          if (tabData?.bar_id === bar.id) {
+            // Check if customer approved/rejected staff order
+            if (
+              oldOrder.status === 'pending' && 
+              oldOrder.initiated_by === 'staff' &&
+              updatedOrder.status !== 'pending'
+            ) {
+              if (updatedOrder.status === 'confirmed') {
+                console.log('✅ Customer approved staff order');
+                notificationManager.triggerNotification('customer_approval');
+                
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification('Order Approved ✅', {
+                    body: `Customer approved your order for Tab #${tabData?.tab_number || 'Unknown'}`,
+                  });
+                }
+              } else if (updatedOrder.status === 'cancelled') {
+                console.log('❌ Customer rejected staff order');
+                notificationManager.triggerNotification('customer_rejection');
+                
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  new Notification('Order Rejected ❌', {
+                    body: `Customer rejected order for Tab #${tabData?.tab_number || 'Unknown'}`,
+                  });
+                }
+              }
+            }
+
+            loadTabs();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'tab_payments'
+        },
+        async (payload) => {
+          console.log('💰 Staff: Payment received:', payload);
+          const newPayment = payload.new as any;
+
+          // Verify payment belongs to our bar
+          const { data: tabData } = await supabase
+            .from('tabs')
+            .select('bar_id, tab_number')
+            .eq('id', newPayment.tab_id)
+            .single();
+
+          if (tabData?.bar_id === bar.id && newPayment.status === 'success') {
+            notificationManager.triggerNotification('payment_received');
+            
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('Payment Received 💰', {
+                body: `Tab #${tabData?.tab_number || 'Unknown'} - KSh ${newPayment.amount}`,
+              });
+            }
+
+            loadTabs();
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Staff realtime subscription status:', status);
+      });
+
+    setRealtimeChannel(channel);
+
+    // Cleanup
+    return () => {
+      console.log('🔌 Staff: Cleaning up realtime subscriptions');
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [bar?.id]);
+
+  // Request browser notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log('Staff browser notification permission:', permission);
+      });
+    }
+  }, []);
 
   const loadTabs = async () => {
     if (!bar) return;

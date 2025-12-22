@@ -1,4 +1,4 @@
-// app/start/page.tsx - FIXED: Better bar_id handling
+// /apps/customer/app/start/page.tsx - COMPLETE FILE WITH NOTIFICATIONS
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -7,7 +7,6 @@ import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
 import { getNotificationManager, NotificationManager } from '@/lib/notifications';
-
 
 // Create a separate component that uses useSearchParams
 function ConsentContent() {
@@ -85,7 +84,7 @@ function ConsentContent() {
         return;
       }
 
-      // ✅ CRITICAL FIX: Set the bar ID here!
+      // Set the bar ID here!
       setBarId(bar.id);
       setBarName(bar.name || 'Bar');
       console.log('✅ Bar loaded successfully:', bar.name, 'ID:', bar.id);
@@ -128,26 +127,26 @@ function ConsentContent() {
 
     setCreating(true);
 
-    // Save notification preferences
-    const notificationManager = getNotificationManager();
-    notificationManager.setPreferences({
-      soundEnabled,
-      vibrationEnabled
-    });
-
-    // Test notification to ensure AudioContext is initialized
-    if (soundEnabled || vibrationEnabled) {
-      try {
-        await notificationManager.testNotification();
-      } catch (e) {
-        console.warn('Could not test notification:', e);
-      }
-    }
-
     try {
+      // Save notification preferences
+      const notificationManager = getNotificationManager();
+      notificationManager.setPreferences({
+        soundEnabled,
+        vibrationEnabled
+      });
+
+      // Test notification to ensure AudioContext is initialized
+      if (soundEnabled || vibrationEnabled) {
+        try {
+          await notificationManager.testNotification();
+        } catch (e) {
+          console.warn('Could not test notification:', e);
+        }
+      }
+
       const barDeviceKey = getBarDeviceKey(barId);
       
-      // ✅ CHECK: Does this device already have an open tab at this bar?
+      // CHECK: Does this device already have an open tab at this bar?
       const { data: existingTab, error: checkError } = await supabase
         .from('tabs')
         .select('*')
@@ -213,11 +212,30 @@ function ConsentContent() {
         tabNumber = nextNumber;
       }
 
-      console.log('📝 Creating NEW tab for bar:', barId);
+      console.log('🆕 Creating NEW tab for bar:', barId);
 
       // Create new tab with device-bar key
       const { data: tab, error: tabError } = await supabase
         .from('tabs')
+        .insert({
+          bar_id: barId,
+          tab_number: tabNumber,
+          status: 'open',
+          owner_identifier: barDeviceKey,
+          notes: JSON.stringify({
+            display_name: displayName,
+            has_nickname: !!nickname.trim(),
+            device_id: getDeviceId(),
+            sound_enabled: soundEnabled,
+            vibration_enabled: vibrationEnabled,
+            terms_accepted: termsAccepted,
+            accepted_at: new Date().toISOString(),
+            bar_name: barName
+          })
+        })
+        .select()
+        .single();
+
       if (tabError) throw tabError;
 
       console.log('✅ New tab created successfully:', tab);
@@ -286,10 +304,12 @@ function ConsentContent() {
     );
   }
 
+  const notificationSupport = NotificationManager.isSupported();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        {/* Bar Information - Prominently Displayed */}
+        {/* Bar Information */}
         <div className="text-center mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-200">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Store size={20} className="text-orange-600" />
@@ -297,11 +317,6 @@ function ConsentContent() {
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
           <p className="text-sm text-gray-600">Ready to start your tab</p>
-          {barId && (
-            <p className="text-xs text-gray-400 mt-2 font-mono">
-              Bar ID: {barId.substring(0, 8)}...
-            </p>
-          )}
         </div>
 
         {/* Trust Statement */}
@@ -336,35 +351,61 @@ function ConsentContent() {
           </p>
         </div>
 
-        {/* Notifications */}
+        {/* Enhanced Notifications Section */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <Bell size={20} className="text-gray-600" />
             <span className="text-sm font-medium text-gray-700">Notifications</span>
+            <span className="text-xs text-orange-500 font-medium">(Recommended)</span>
           </div>
           
-          <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
+          <p className="text-xs text-gray-600 mb-3">
+            Get instant alerts when your order is ready
+          </p>
+          
+          {/* Sound Notifications */}
+          <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition mb-3">
             <input
               type="checkbox"
-              checked={notificationsEnabled}
-              onChange={(e) => setNotificationsEnabled(e.target.checked)}
+              checked={soundEnabled}
+              onChange={(e) => setSoundEnabled(e.target.checked)}
               className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
             />
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-700 mb-1">
-                Allow message notifications
-              </p>
+              <p className="text-sm font-medium text-gray-700 mb-1">🔊 Sound Alerts</p>
               <ul className="text-xs text-gray-600 space-y-1">
-                <li>• Order updates from {barName}</li>
+                <li>• Order confirmed by staff</li>
+                <li>• Order ready for pickup</li>
                 <li>• Staff messages</li>
-                <li>• Bill ready alerts</li>
               </ul>
             </div>
           </label>
           
-          <p className="text-xs text-gray-500 mt-2">
-            Sounds and on-screen alerts only. No phone number required.
-          </p>
+          {/* Vibration Notifications - Only show on mobile */}
+          {notificationSupport.vibration && (
+            <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
+              <input
+                type="checkbox"
+                checked={vibrationEnabled}
+                onChange={(e) => setVibrationEnabled(e.target.checked)}
+                className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-700 mb-1">📳 Vibration Alerts</p>
+                <ul className="text-xs text-gray-600 space-y-1">
+                  <li>• Haptic feedback on updates</li>
+                  <li>• Works even on silent mode</li>
+                </ul>
+              </div>
+            </label>
+          )}
+          
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-800 flex items-center gap-2">
+              <Bell size={14} />
+              <span>No phone number or email required. Notifications work only while the app is open.</span>
+            </p>
+          </div>
         </div>
 
         {/* Terms Consent */}
