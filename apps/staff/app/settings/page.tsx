@@ -353,7 +353,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
-      <div className="w-full" style={{ maxWidth: '80%' }}>
+      <div className="w-full lg:max-w-[80%] max-w-full">
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
           {!isNewUser && (
             <button 

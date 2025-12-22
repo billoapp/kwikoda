@@ -221,8 +221,8 @@ export default function TabDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center">
-      {/* Main container with 70% width */}
-      <div className="w-full" style={{ maxWidth: '70%' }}>
+      {/* Main container with responsive width */}
+      <div className="w-full lg:max-w-[70%] max-w-full">
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
           <div className="flex items-center justify-between mb-4">
             <button 
