@@ -255,6 +255,7 @@ export default function MenuManagementPage() {
           custom_product_id: null,
           sale_price: parseFloat(price),
           active: true
+          // NO user_id!
         });
 
       if (error) {
@@ -272,6 +273,39 @@ export default function MenuManagementPage() {
     } catch (error: any) {
       console.error('Error:', error);
       alert('Failed to add item: ' + error.message);
+    }
+  };
+
+  // PUBLISH CUSTOM PRODUCT to menu
+  const handlePublishCustomProduct = async (customProduct: any) => {
+    const price = addingPrice[customProduct.id];
+    
+    if (!price || parseFloat(price) <= 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('bar_products')
+        .insert({
+          bar_id: currentBarId,
+          product_id: null,
+          custom_product_id: customProduct.id,
+          sale_price: parseFloat(price),
+          active: true
+          // NO user_id!
+        });
+
+      if (error) throw error;
+
+      setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
+      await loadBarMenu();
+      alert('✅ Published to menu!');
+
+    } catch (error: any) {
+      console.error('Error publishing:', error);
+      alert('Failed to publish: ' + error.message);
     }
   };
 
@@ -310,39 +344,7 @@ export default function MenuManagementPage() {
     }
   };
 
-  // PUBLISH CUSTOM PRODUCT to menu
-  const handlePublishCustomProduct = async (customProduct: any) => {
-    const price = addingPrice[customProduct.id];
-    
-    if (!price || parseFloat(price) <= 0) {
-      alert('Please enter a valid price');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('bar_products')
-        .insert({
-          bar_id: currentBarId,
-          product_id: null,
-          custom_product_id: customProduct.id,
-          sale_price: parseFloat(price),
-          active: true
-        });
-
-      if (error) throw error;
-
-      setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
-      await loadBarMenu();
-      alert('✅ Published to menu!');
-
-    } catch (error: any) {
-      console.error('Error publishing:', error);
-      alert('Failed to publish: ' + error.message);
-    }
-  };
-
-  // UPDATE PRICE in bar_products
+    // UPDATE PRICE in bar_products
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
       const { error } = await supabase
