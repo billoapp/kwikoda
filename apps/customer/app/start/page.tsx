@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
+import { getNotificationManager, NotificationManager } from '@/lib/notifications';
 
 
 // Create a separate component that uses useSearchParams
@@ -13,7 +14,8 @@ function ConsentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [nickname, setNickname] = useState('');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [creating, setCreating] = useState(false);
   const [barSlug, setBarSlug] = useState<string | null>(null);
@@ -126,6 +128,22 @@ function ConsentContent() {
 
     setCreating(true);
 
+    // Save notification preferences
+    const notificationManager = getNotificationManager();
+    notificationManager.setPreferences({
+      soundEnabled,
+      vibrationEnabled
+    });
+
+    // Test notification to ensure AudioContext is initialized
+    if (soundEnabled || vibrationEnabled) {
+      try {
+        await notificationManager.testNotification();
+      } catch (e) {
+        console.warn('Could not test notification:', e);
+      }
+    }
+
     try {
       const barDeviceKey = getBarDeviceKey(barId);
       
@@ -200,24 +218,6 @@ function ConsentContent() {
       // Create new tab with device-bar key
       const { data: tab, error: tabError } = await supabase
         .from('tabs')
-        .insert({
-          bar_id: barId,
-          tab_number: tabNumber,
-          status: 'open',
-          owner_identifier: barDeviceKey, // ✅ Use device-bar key
-          notes: JSON.stringify({
-            display_name: displayName,
-            has_nickname: !!nickname.trim(),
-            device_id: getDeviceId(),
-            notifications_enabled: notificationsEnabled,
-            terms_accepted: termsAccepted,
-            accepted_at: new Date().toISOString(),
-            bar_name: barName
-          })
-        })
-        .select()
-        .single();
-
       if (tabError) throw tabError;
 
       console.log('✅ New tab created successfully:', tab);
