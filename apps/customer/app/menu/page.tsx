@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface Product {
@@ -41,17 +41,19 @@ export default function MenuPage() {
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [menuExpanded, setMenuExpanded] = useState(true);
+  const [scrollY, setScrollY] = useState(0);
 
-  // Helper function to get display image with category fallback - SAME AS STAFF APP
+  const menuCollapseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper function to get display image with category fallback
   const getDisplayImage = (product: Product, categoryName?: string) => {
     if (!product) return null;
     
-    // 1. Try product image first (though none have images yet)
     if (product.image_url) {
       return product.image_url;
     }
     
-    // 2. Fall back to category image - EXACT SAME LOGIC AS STAFF APP
     const category = categories.find(cat => 
       cat.name === (categoryName || product.category)
     );
@@ -65,6 +67,39 @@ export default function MenuPage() {
   const menuRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const paymentRef = useRef<HTMLDivElement>(null);
+
+  // Handle scroll for parallax effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-collapse menu after 30 seconds
+  useEffect(() => {
+    if (menuExpanded) {
+      if (menuCollapseTimerRef.current) {
+        clearTimeout(menuCollapseTimerRef.current);
+      }
+      
+      menuCollapseTimerRef.current = setTimeout(() => {
+        setMenuExpanded(false);
+      }, 30000); // 30 seconds
+    }
+
+    return () => {
+      if (menuCollapseTimerRef.current) {
+        clearTimeout(menuCollapseTimerRef.current);
+      }
+    };
+  }, [menuExpanded]);
+
+  const toggleMenu = () => {
+    setMenuExpanded(!menuExpanded);
+  };
 
   useEffect(() => {
     loadTabData();
@@ -149,37 +184,28 @@ export default function MenuPage() {
       setDisplayName(name);
 
       if (fullTab.bar?.id) {
-        console.log('📋 Loading products for bar:', fullTab.bar.id);
-        
-        // FIXED: Load categories WITHOUT 'active' filter (categories table has no active column)
         try {
           const { data: categoriesData, error: categoriesError } = await supabase
             .from('categories')
             .select('*')
-            .order('name');  // SAME AS STAFF APP - NO ACTIVE FILTER
+            .order('name');
 
           if (categoriesError) {
-            console.error('❌ Error loading categories:', categoriesError);
-            // If error, try without order as well
             const { data: retryData, error: retryError } = await supabase
               .from('categories')
               .select('*');
               
             if (!retryError) {
-              console.log('✅ Loaded categories (retry):', retryData?.length || 0);
               setCategories(retryData || []);
             }
           } else {
-            console.log('✅ Loaded categories:', categoriesData?.length || 0);
             setCategories(categoriesData || []);
           }
         } catch (error) {
           console.error('Error loading categories:', error);
         }
 
-        // Then get bar_products
         try {
-          // First get bar_products
           const { data: barProductsData, error: barProductsError } = await supabase
             .from('bar_products')
             .select('id, bar_id, product_id, sale_price, active')
@@ -187,26 +213,17 @@ export default function MenuPage() {
             .eq('active', true);
 
           if (barProductsError) {
-            console.error('❌ Error loading bar products:', barProductsError);
+            console.error('Error loading bar products:', barProductsError);
           } else if (barProductsData && barProductsData.length > 0) {
-            console.log('✅ Bar products data:', barProductsData);
-            
-            // Get product IDs
             const productIds = barProductsData.map(bp => bp.product_id);
             
             if (productIds.length > 0) {
-              // Get product details
               const { data: productsData, error: productsError } = await supabase
                 .from('products')
                 .select('id, name, description, category, image_url')
                 .in('id', productIds);
 
-              if (productsError) {
-                console.error('❌ Error loading products:', productsError);
-              } else {
-                console.log('✅ Products data:', productsData);
-                
-                // Combine data
+              if (!productsError) {
                 const transformedProducts = barProductsData.map(barProduct => {
                   const product = productsData?.find(p => p.id === barProduct.product_id);
                   
@@ -235,7 +252,6 @@ export default function MenuPage() {
         }
       }
 
-      // Load orders
       try {
         const { data: ordersData, error: ordersError } = await supabase
           .from('tab_orders')
@@ -248,7 +264,6 @@ export default function MenuPage() {
         console.error('Error loading orders:', error);
       }
 
-      // Load payments
       try {
         const { data: paymentsData, error: paymentsError } = await supabase
           .from('tab_payments')
@@ -504,9 +519,14 @@ export default function MenuPage() {
     );
   }
 
+  const parallaxOffset = scrollY * 0.5;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg">
+      <div 
+        className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg"
+        style={{ transform: `translateY(${parallaxOffset}px)` }}
+      >
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{displayName}</h1>
@@ -575,108 +595,141 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div ref={menuRef} className="bg-white p-4">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Menu</h2>
-        
-        {barProducts.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 mb-2">No menu items available</p>
-            <p className="text-sm text-gray-400">Please contact staff</p>
-          </div>
-        ) : (
-          <>
-            <div className="relative mb-3">
-              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input 
-                type="text" 
-                value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
-                placeholder="Search drinks..." 
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none" 
-              />
-            </div>
-            
-            <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar mb-4">
-              {categoryOptions.map(cat => (
-                <button 
-                  key={cat} 
-                  onClick={() => setSelectedCategory(cat)} 
-                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === cat ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 mb-20">
-              {filteredProducts.map(barProduct => {
-                const product = barProduct.product;
-                if (!product) return null;
+      <div ref={menuRef} className="bg-white relative overflow-hidden">
+        <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
+          <button
+            onClick={toggleMenu}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h2 className="text-2xl font-bold text-gray-800">Menu</h2>
+            {menuExpanded ? (
+              <ChevronUp size={24} className="text-orange-500" />
+            ) : (
+              <ChevronDown size={24} className="text-orange-500" />
+            )}
+          </button>
+        </div>
+
+        <div 
+          className={`transition-all duration-500 ease-in-out overflow-hidden ${
+            menuExpanded ? 'max-h-[50vh] opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="p-4 overflow-y-auto" style={{ maxHeight: '50vh' }}>
+            {barProducts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 mb-2">No menu items available</p>
+                <p className="text-sm text-gray-400">Please contact staff</p>
+              </div>
+            ) : (
+              <>
+                <div className="relative mb-3">
+                  <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="text" 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    placeholder="Search drinks..." 
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none" 
+                  />
+                </div>
                 
-                // SAME AS STAFF APP - No second parameter needed
-                const displayImage = getDisplayImage(product);
-                
-                return (
-                  <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
-                    {displayImage ? (
-                      <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden mb-2">
-                        <img 
-                          src={displayImage} 
-                          alt={product.name || 'Product'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            console.error('❌ Image failed to load:', displayImage);
-                            e.currentTarget.style.display = 'none';
-                            // Show fallback when image fails
-                            const parent = e.currentTarget.parentElement;
-                            if (parent) {
-                              const fallback = document.createElement('div');
-                              fallback.className = 'w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center';
-                              const span = document.createElement('span');
-                              span.className = 'text-4xl text-gray-400 font-semibold';
-                              span.textContent = product.category?.charAt(0) || 'P';
-                              fallback.appendChild(span);
-                              parent.appendChild(fallback);
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center">
-                        <span className="text-4xl text-gray-400 font-semibold">
-                          {product.category?.charAt(0) || 'P'}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className="text-center">
-                      <h3 className="font-bold text-gray-800 text-base mb-3 line-clamp-2">
-                        {product.name || 'Product'}
-                      </h3>
-                      
-                      <p className="text-orange-600 font-bold text-xl mb-3">
-                        KSh {barProduct.sale_price.toFixed(0)}
-                      </p>
-                    </div>
-                    
+                <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar mb-4">
+                  {categoryOptions.map(cat => (
                     <button 
-                      onClick={() => addToCart(barProduct)} 
-                      className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 font-medium transition"
+                      key={cat} 
+                      onClick={() => setSelectedCategory(cat)} 
+                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${selectedCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                     >
-                      <Plus size={18} />
-                      <span className="text-sm">Add to Cart</span>
+                      {cat}
                     </button>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                  ))}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 pb-4">
+                  {filteredProducts.map((barProduct, index) => {
+                    const product = barProduct.product;
+                    if (!product) return null;
+                    
+                    const displayImage = getDisplayImage(product);
+                    
+                    return (
+                      <div 
+                        key={barProduct.id} 
+                        className="bg-gray-50 rounded-xl p-3 shadow-sm transform transition-all hover:scale-105 hover:shadow-md"
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                        }}
+                      >
+                        {displayImage ? (
+                          <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden mb-2">
+                            <img 
+                              src={displayImage} 
+                              alt={product.name || 'Product'}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const parent = e.currentTarget.parentElement;
+                                if (parent) {
+                                  const fallback = document.createElement('div');
+                                  fallback.className = 'w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center';
+                                  const span = document.createElement('span');
+                                  span.className = 'text-4xl text-gray-400 font-semibold';
+                                  span.textContent = product.category?.charAt(0) || 'P';
+                                  fallback.appendChild(span);
+                                  parent.appendChild(fallback);
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center">
+                            <span className="text-4xl text-gray-400 font-semibold">
+                              {product.category?.charAt(0) || 'P'}
+                            </span>
+                          </div>
+                        )}
+                        
+                        <div className="text-center">
+                          <h3 className="font-bold text-gray-800 text-base mb-3 line-clamp-2">
+                            {product.name || 'Product'}
+                          </h3>
+                          
+                          <p className="text-orange-600 font-bold text-xl mb-3">
+                            KSh {barProduct.sale_price.toFixed(0)}
+                          </p>
+                        </div>
+                        
+                        <button 
+                          onClick={() => addToCart(barProduct)} 
+                          className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 font-medium transition"
+                        >
+                          <Plus size={18} />
+                          <span className="text-sm">Add to Cart</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {!menuExpanded && (
+          <div className="p-4 text-center text-sm text-gray-500 border-t">
+            Click to expand menu
+          </div>
         )}
       </div>
 
-      <div ref={ordersRef} className="bg-gray-50 p-4 min-h-screen">
+      <div 
+        ref={ordersRef} 
+        className="bg-gray-50 p-4 min-h-screen"
+        style={{ transform: `translateY(${parallaxOffset * 0.3}px)` }}
+      >
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Your Orders</h2>
-        <div className="bg-white rounded-xl p-4 mb-4">
+        <div className="bg-white rounded-xl p-4 mb-4 shadow-md">
           <div className="flex justify-between mb-2">
             <span className="text-gray-600">Total Orders</span>
             <span className="font-bold">KSh {tabTotal.toFixed(0)}</span>
