@@ -741,7 +741,7 @@ export default function MenuPage() {
         className="bg-gray-50 p-4 min-h-screen"
         style={{ transform: `translateY(${parallaxOffset * 0.3}px)` }}
       >
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Your Orders</h2>
+        <h2 className="text-3xl font-bold text-red-600 mb-4">Your Orders</h2>
         <div className="bg-white rounded-xl p-4 mb-4 shadow-md">
           <div className="flex justify-between mb-2">
             <span className="text-gray-600">Total Orders</span>

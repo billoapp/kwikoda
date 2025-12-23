@@ -176,7 +176,7 @@ export default function TabsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Users size={16} className="text-orange-100" />
@@ -186,10 +186,17 @@ export default function TabsPage() {
             </div>
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
-                <AlertCircle size={16} className="text-orange-100" />
-                <span className="text-sm text-orange-100">Pending Orders</span>
+                <DollarSign size={16} className="text-orange-100" />
+                <span className="text-sm text-orange-100">Orders</span>
               </div>
-              <p className="text-2xl font-bold">{stats.pendingOrders}</p>
+              <p className="text-2xl font-bold">{tabs.reduce((sum, tab) => sum + (tab.orders?.length || 0), 0)}</p>
+            </div>
+            <div className="bg-red-500 bg-opacity-30 backdrop-blur-sm rounded-xl p-4 border border-red-300">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle size={16} className="text-red-100 animate-pulse" />
+                <span className="text-sm text-red-100 font-semibold">Pending</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{stats.pendingOrders}</p>
             </div>
           </div>
         </div>
