@@ -209,47 +209,58 @@ export default function MenuPage() {
         try {
           const { data: barProductsData, error: barProductsError } = await (supabase as any)
             .from('bar_products')
-            .select('id, bar_id, product_id, sale_price, active')
+            .select('id, bar_id, product_id, custom_product_id, name, description, category, image_url, sale_price, active')
             .eq('bar_id', fullTab.bar.id)
             .eq('active', true);
 
           if (barProductsError) {
             console.error('Error loading bar products:', barProductsError);
           } else if (barProductsData && barProductsData.length > 0) {
-            const productIds = barProductsData.map((bp: any) => bp.product_id);
-            
-            if (productIds.length > 0) {
-              const { data: productsData, error: productsError } = await (supabase as any)
-                .from('products')
-                .select('id, name, description, category, image_url')
-                .in('id', productIds);
-
-              if (!productsError) {
-                const transformedProducts = barProductsData.map((barProduct: any) => {
-                  const product = productsData?.find((p: any) => p.id === barProduct.product_id);
-                  
-                  return {
-                    id: barProduct.id,
-                    bar_id: barProduct.bar_id,
-                    product_id: barProduct.product_id,
-                    sale_price: barProduct.sale_price,
-                    active: barProduct.active,
-                    product: product ? {
-                      id: product.id,
-                      name: product.name,
-                      description: product.description || '',
-                      category: product.category || 'Uncategorized',
-                      image_url: product.image_url
-                    } : undefined
-                  };
-                });
-
-                setBarProducts(transformedProducts as BarProduct[]);
+            const transformedProducts = barProductsData.map((bp: any) => ({
+              id: bp.id,
+              bar_id: bp.bar_id,
+              product_id: bp.product_id || bp.custom_product_id,
+              sale_price: bp.sale_price,
+              active: bp.active,
+              product: {
+                id: bp.product_id || bp.custom_product_id,
+                name: bp.name,
+                description: bp.description || '',
+                category: bp.category || 'Uncategorized',
+                image_url: bp.image_url
               }
-            }
+            }));
+
+            setBarProducts(transformedProducts as BarProduct[]);
           }
         } catch (error) {
           console.error('Error loading products:', error);
+        }
+
+        try {
+          const { data: ordersData, error: ordersError } = await supabase
+            .from('tab_orders')
+            .select('*')
+            .eq('tab_id', currentTab.id)
+            .order('created_at', { ascending: false });
+
+          if (!ordersError) setOrders(ordersData || []);
+        } catch (error) {
+          console.error('Error loading orders:', error);
+        }
+
+        try {
+          const { data: paymentsData, error: paymentsError } = await supabase
+            .from('tab_payments')
+            .select('*')
+            .eq('tab_id', currentTab.id)
+            .order('created_at', { ascending: false });
+
+          if (!paymentsError) {
+            setPayments(paymentsData || []);
+          }
+        } catch (error) {
+          console.error('Error loading payments:', error);
         }
       }
 
@@ -272,7 +283,9 @@ export default function MenuPage() {
           .eq('tab_id', currentTab.id)
           .order('created_at', { ascending: false });
 
-        if (!paymentsError) setPayments(paymentsData || []);
+        if (!paymentsError) {
+          setPayments(paymentsData || []);
+        }
       } catch (error) {
         console.error('Error loading payments:', error);
       }
