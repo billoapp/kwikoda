@@ -126,51 +126,28 @@ export default function MenuManagementPage() {
   };
 
   const loadBarMenu = async () => {
-    try {
-      if (!currentBarId) return;
+  try {
+    if (!currentBarId) return;
 
-      const { data, error } = await supabase
-        .from('bar_products')
-        .select(`
-          id,
-          bar_id,
-          product_id,
-          custom_product_id,
-          sale_price,
-          active,
-          created_at,
-          products (
-            id,
-            name,
-            sku,
-            category,
-            image_url,
-            description,
-            suppliers (name, logo_url)
-          ),
-          custom_products (
-            id,
-            name,
-            sku,
-            category,
-            image_url,
-            description
-          )
-        `)
-        .eq('bar_id', currentBarId)
-        .eq('active', true);
+    // Just fetch bar_products - all data is already there!
+    const { data, error } = await supabase
+      .from('bar_products')
+      .select('*')
+      .eq('bar_id', currentBarId)
+      .eq('active', true)
+      .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading bar_products:', error);
-        return;
-      }
-
-      setBarProducts(data || []);
-
-    } catch (error) {
-      console.error('Unexpected error in loadBarMenu:', error);
+    if (error) {
+      console.error('Error loading bar_products:', error);
+      return;
     }
-  };
+
+    setBarProducts(data || []);
+
+  } catch (error) {
+    console.error('Unexpected error in loadBarMenu:', error);
+  }
+};
 
   const loadCustomProducts = async () => {
     try {
@@ -932,9 +909,9 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                                 </span>
                               )}
                             </div>
-                            {!isCustom && productData?.suppliers?.name && (
+                            {/* {!isCustom && productData?.suppliers?.name && (
                               <p className="text-xs text-gray-500">{productData.suppliers.name}</p>
-                            )}
+                            )} */}
                             {productData?.description && (
                               <p className="text-xs text-gray-600 mt-1">{productData.description}</p>
                             )}
