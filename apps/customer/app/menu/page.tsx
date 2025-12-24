@@ -525,7 +525,6 @@ export default function MenuPage() {
   const pendingTime = getPendingOrderTime();
   if (!pendingTime) return null;
   
-  const progress = Math.min((pendingTime.elapsed / 300) * 100, 100);
   
   return (
     <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
@@ -545,7 +544,7 @@ export default function MenuPage() {
             strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={`${2 * Math.PI * 45} ${2 * Math.PI * 45}`}
-            strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
+            strokeDashoffset={`${2 * Math.PI * 45 * (1 - Math.min((pendingTime.elapsed / 300) * 100, 100) / 100)}`}
             className="transition-all duration-1000 ease-linear"
           />
           <defs>
@@ -561,7 +560,7 @@ export default function MenuPage() {
           <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
             {formatTime(pendingTime.elapsed)}
           </div>
-          <p className="text-xs text-gray-500 mt-2">Waiting for staff</p>
+          <p className="text-xs text-gray-500 mt-2">Time elapsed</p>
         </div>
       </div>
       
