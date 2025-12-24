@@ -206,6 +206,7 @@ export default function MenuPage() {
           console.error('Error loading categories:', error);
         }
 
+        // FIXED: Load bar products with denormalized data (no separate products query!)
         try {
           const { data: barProductsData, error: barProductsError } = await (supabase as any)
             .from('bar_products')
@@ -216,6 +217,7 @@ export default function MenuPage() {
           if (barProductsError) {
             console.error('Error loading bar products:', barProductsError);
           } else if (barProductsData && barProductsData.length > 0) {
+            // Transform to match your existing BarProduct interface
             const transformedProducts = barProductsData.map((bp: any) => ({
               id: bp.id,
               bar_id: bp.bar_id,
@@ -235,32 +237,6 @@ export default function MenuPage() {
           }
         } catch (error) {
           console.error('Error loading products:', error);
-        }
-
-        try {
-          const { data: ordersData, error: ordersError } = await supabase
-            .from('tab_orders')
-            .select('*')
-            .eq('tab_id', currentTab.id)
-            .order('created_at', { ascending: false });
-
-          if (!ordersError) setOrders(ordersData || []);
-        } catch (error) {
-          console.error('Error loading orders:', error);
-        }
-
-        try {
-          const { data: paymentsData, error: paymentsError } = await supabase
-            .from('tab_payments')
-            .select('*')
-            .eq('tab_id', currentTab.id)
-            .order('created_at', { ascending: false });
-
-          if (!paymentsError) {
-            setPayments(paymentsData || []);
-          }
-        } catch (error) {
-          console.error('Error loading payments:', error);
         }
       }
 
@@ -283,9 +259,7 @@ export default function MenuPage() {
           .eq('tab_id', currentTab.id)
           .order('created_at', { ascending: false });
 
-        if (!paymentsError) {
-          setPayments(paymentsData || []);
-        }
+        if (!paymentsError) setPayments(paymentsData || []);
       } catch (error) {
         console.error('Error loading payments:', error);
       }
@@ -315,6 +289,7 @@ export default function MenuPage() {
           closed_at: new Date().toISOString(),
           closed_by: 'customer'
         })
+        
         .eq('id', tab.id);
 
       if (error) throw error;

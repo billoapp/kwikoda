@@ -280,19 +280,42 @@ export default function MenuManagementPage() {
     }
   };
 
-  // PUBLISH CUSTOM PRODUCT to menu
-  const handlePublishCustomProduct = async (customProduct: any) => {
-    const price = addingPrice[customProduct.id];
-    
-    if (!price || parseFloat(price) <= 0) {
-      await loadBarMenu();
-      alert('✅ Published to menu!');
+// PUBLISH CUSTOM PRODUCT to menu
+const handlePublishCustomProduct = async (customProduct: any) => {
+  const price = addingPrice[customProduct.id];
+  
+  if (!price || parseFloat(price) <= 0) {
+    alert('Please enter a valid price');
+    return;
+  }
 
-    } catch (error: any) {
-      console.error('Error publishing:', error);
-      alert('Failed to publish: ' + error.message);
-    }
-  };
+  try {
+    const { error } = await supabase
+      .from('bar_products')
+      .insert({
+        bar_id: currentBarId,
+        product_id: null,
+        custom_product_id: customProduct.id,
+        name: customProduct.name,
+        description: customProduct.description,
+        category: customProduct.category,
+        image_url: customProduct.image_url,
+        sku: customProduct.sku,
+        sale_price: parseFloat(price),
+        active: true
+      });
+
+    if (error) throw error;
+
+    setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
+    await loadBarMenu();
+    alert('✅ Published to menu!');
+
+  } catch (error: any) {
+    console.error('Error publishing:', error);
+    alert('Failed to publish: ' + error.message);
+  }
+};
 
   // CREATE CUSTOM PRODUCT (unpublished)
   const handleCreateCustomProduct = async () => {
