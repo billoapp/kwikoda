@@ -153,7 +153,7 @@ export default function MenuPage() {
     }
 
     try {
-      const { data: fullTab, error: tabError } = await supabase
+      const { data: fullTab, error: tabError } = await (supabase as any)
         .from('tabs')
         .select('*, bar:bars(id, name, location)')
         .eq('id', currentTab.id)
@@ -186,7 +186,7 @@ export default function MenuPage() {
 
       if (fullTab.bar?.id) {
         try {
-          const { data: categoriesData, error: categoriesError } = await supabase
+          const { data: categoriesData, error: categoriesError } = await (supabase as any)
             .from('categories')
             .select('*')
             .order('name');
@@ -207,7 +207,7 @@ export default function MenuPage() {
         }
 
         try {
-          const { data: barProductsData, error: barProductsError } = await supabase
+          const { data: barProductsData, error: barProductsError } = await (supabase as any)
             .from('bar_products')
             .select('id, bar_id, product_id, sale_price, active')
             .eq('bar_id', fullTab.bar.id)
@@ -216,17 +216,17 @@ export default function MenuPage() {
           if (barProductsError) {
             console.error('Error loading bar products:', barProductsError);
           } else if (barProductsData && barProductsData.length > 0) {
-            const productIds = barProductsData.map(bp => bp.product_id);
+            const productIds = barProductsData.map((bp: any) => bp.product_id);
             
             if (productIds.length > 0) {
-              const { data: productsData, error: productsError } = await supabase
+              const { data: productsData, error: productsError } = await (supabase as any)
                 .from('products')
                 .select('id, name, description, category, image_url')
                 .in('id', productIds);
 
               if (!productsError) {
-                const transformedProducts = barProductsData.map(barProduct => {
-                  const product = productsData?.find(p => p.id === barProduct.product_id);
+                const transformedProducts = barProductsData.map((barProduct: any) => {
+                  const product = productsData?.find((p: any) => p.id === barProduct.product_id);
                   
                   return {
                     id: barProduct.id,
