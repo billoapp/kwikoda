@@ -186,7 +186,7 @@ const { data: ordersData, error: ordersError } = await supabase
 .from('tab_orders')
 .select('*')
 .eq('tab_id', currentTab.id)
-.order('created_at', { ascending: false });
+.order('created_at', { ascending: false }); // Still fetch latest first for display
 if (!ordersError) setOrders(ordersData || []);
 } catch (error) {
 console.error('Error loading orders:', error);
@@ -234,7 +234,7 @@ sessionStorage.removeItem('cart');
 sessionStorage.removeItem('displayName');
 sessionStorage.removeItem('barName');
 // NEW: Also remove the stored order submission time when closing the tab
-sessionStorage.removeItem('customerOrderSubmissionTime');
+sessionStorage.removeItem('oldestPendingCustomerOrderTime');
 alert('✅ Tab closed successfully! Thank you for visiting ' + barName + '.');
 router.push('/');
 } catch (error: any) {
@@ -340,13 +340,21 @@ initiated_by: 'customer'
 });
 if (error) throw error;
 
-// NEW: Store the submission time when order is created successfully
-sessionStorage.setItem('customerOrderSubmissionTime', new Date().toISOString());
+// NEW: Store the submission time for the *oldest* pending order *after* insertion
+// First, find the oldest pending order *before* this new one was added.
+const previousOldestPending = orders.find(o => o.status === 'pending' && o.initiated_by === 'customer');
+// The new order is now pending, so the oldest is either the new one (if no previous) or the previous one.
+// Since orders are fetched descending by created_at, the new order will be first.
+// We need to refetch orders or consider the new one's time if no previous oldest existed.
+// A simpler approach: If no pending order existed before, store the time of this new one.
+// If one existed, the storage should already reflect the oldest one's time.
+// Since `loadTabData` is called after insertion, `getPendingOrderTime` will run again and update storage if necessary.
+// So, we don't need to store time here specifically for the *oldest*, just let `getPendingOrderTime` handle it after reload.
 
 sessionStorage.removeItem('cart');
 setCart([]);
 setShowCart(false);
-await loadTabData();
+await loadTabData(); // Reload to get the new order status and update stored time if needed
 window.scrollTo({ top: 0, behavior: 'smooth' });
 } catch (error: any) {
 console.error('Error creating order:', error);
@@ -399,23 +407,34 @@ if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
 return `${Math.floor(seconds / 3600)}h ago`;
 };
 
-// MODIFIED: getPendingOrderTime function to use stored submission time for persistence
+// MODIFIED: getPendingOrderTime function to find the OLDEST pending customer order and use stored time for persistence
 const getPendingOrderTime = () => {
-const pendingOrder = orders.find(o => o.status === 'pending' && o.initiated_by === 'customer');
-if (!pendingOrder) {
-// NEW: If no pending order, clear the stored time to avoid stale data
-sessionStorage.removeItem('customerOrderSubmissionTime');
+// Find ALL pending customer orders
+const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
+
+if (pendingCustomerOrders.length === 0) {
+// NEW: If no pending orders, clear the stored time
+sessionStorage.removeItem('oldestPendingCustomerOrderTime');
 return null;
 }
 
-// NEW: Check for stored submission time first (for persistence)
-const storedSubmissionTimeStr = sessionStorage.getItem('customerOrderSubmissionTime');
+// Find the OLDEST pending customer order (minimum created_at)
+const oldestPendingOrder = pendingCustomerOrders.reduce((oldest, current) => {
+return new Date(current.created_at) < new Date(oldest.created_at) ? current : oldest;
+}, pendingCustomerOrders[0]);
+
+// NEW: Check for stored submission time for the *oldest* pending order
+const storedSubmissionTimeStr = sessionStorage.getItem('oldestPendingCustomerOrderTime');
 let orderTime;
+
 if (storedSubmissionTimeStr) {
+// Use the stored time if it exists (for persistence)
 orderTime = new Date(storedSubmissionTimeStr).getTime();
 } else {
-// Fallback to server time if stored time is not found (e.g., old orders before this change)
-orderTime = new Date(pendingOrder.created_at).getTime();
+// Fallback to the server's created_at time if not stored (e.g., first time this order is pending)
+orderTime = new Date(oldestPendingOrder.created_at).getTime();
+// NEW: Store this time for future persistence
+sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
 }
 
 const now = new Date().getTime();
@@ -423,7 +442,7 @@ const elapsedSeconds = Math.floor((now - orderTime) / 1000);
 
 return {
 elapsed: elapsedSeconds,
-orderId: pendingOrder.id,
+orderId: oldestPendingOrder.id,
 orderTime: new Date(orderTime).toISOString() // Return the time used for calculation
 };
 };
@@ -487,7 +506,7 @@ className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top
 const pendingTime = getPendingOrderTime();
 if (!pendingTime) return null;
 
-// --- Timer Display Logic for Elapsed Time with Color Phases ---
+// --- Timer Display Logic for Elapsed Time of Oldest Pending Order ---
 const elapsedSeconds = pendingTime.elapsed;
 
 // Determine visual state based on elapsed time
@@ -520,7 +539,7 @@ if (visualState === 'yellow') {
 
 return (
 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
-<p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Order is Being Prepared</p>
+<p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Oldest Order is Being Prepared</p>
 <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
 <svg className="absolute inset-0 w-full h-full transform -rotate-90">
@@ -557,7 +576,7 @@ className="transition-all duration-1000 ease-linear"
 <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
 {formatTime(elapsedSeconds)}
 </div>
-<p className="text-xs text-gray-500 mt-2">Time elapsed</p>
+<p className="text-xs text-gray-500 mt-2">Time elapsed (oldest pending)</p>
 </div>
 </div>
 <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
