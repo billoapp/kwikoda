@@ -186,7 +186,7 @@ const { data: ordersData, error: ordersError } = await supabase
 .from('tab_orders')
 .select('*')
 .eq('tab_id', currentTab.id)
-.order('created_at', { ascending: false }); // Still fetch latest first for display
+.order('created_at', { ascending: false });
 if (!ordersError) setOrders(ordersData || []);
 } catch (error) {
 console.error('Error loading orders:', error);
@@ -341,15 +341,10 @@ initiated_by: 'customer'
 if (error) throw error;
 
 // NEW: Store the submission time for the *oldest* pending order *after* insertion
-// First, find the oldest pending order *before* this new one was added.
-const previousOldestPending = orders.find(o => o.status === 'pending' && o.initiated_by === 'customer');
-// The new order is now pending, so the oldest is either the new one (if no previous) or the previous one.
-// Since orders are fetched descending by created_at, the new order will be first.
-// We need to refetch orders or consider the new one's time if no previous oldest existed.
-// A simpler approach: If no pending order existed before, store the time of this new one.
-// If one existed, the storage should already reflect the oldest one's time.
-// Since `loadTabData` is called after insertion, `getPendingOrderTime` will run again and update storage if necessary.
-// So, we don't need to store time here specifically for the *oldest*, just let `getPendingOrderTime` handle it after reload.
+// The time for the *newly created* order is the current time.
+// After insertion, `loadTabData` is called, which will run `getPendingOrderTime` again.
+// `getPendingOrderTime` will find the oldest pending order (which might be this new one or an existing older one)
+// and manage the `sessionStorage` accordingly.
 
 sessionStorage.removeItem('cart');
 setCart([]);
