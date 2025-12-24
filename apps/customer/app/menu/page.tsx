@@ -486,6 +486,18 @@ className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top
 {(() => {
 const pendingTime = getPendingOrderTime();
 if (!pendingTime) return null;
+// --- Timer Display Logic ---
+// Calculate how much of the ring should be filled based on elapsed time.
+// For example, let's say the ring fills completely after 5 minutes (300 seconds).
+// We can calculate the percentage of 300 seconds that has elapsed.
+const maxTimeSeconds = 300; // 5 minutes
+const elapsedPercentage = Math.min((pendingTime.elapsed / maxTimeSeconds) * 100, 100);
+// The circumference of the circle with radius 45 is 2 * Math.PI * 45
+const circumference = 2 * Math.PI * 45;
+// strokeDashoffset is the length of the gap. Start with the full circumference (empty ring)
+// and subtract the filled portion.
+const strokeDashoffset = circumference * (1 - elapsedPercentage / 100);
+
 return (
 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
 <p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Order is Being Prepared</p>
@@ -501,8 +513,8 @@ fill="none"
 stroke="url(#gradient)"
 strokeWidth="8"
 strokeLinecap="round"
-strokeDasharray={`${2 * Math.PI * 45} ${2 * Math.PI * 45}`}
-strokeDashoffset={`${2 * Math.PI * 45 * (1 - Math.min((pendingTime.elapsed / 300) * 100, 100) / 100)}`}
+strokeDasharray={circumference} // Total length of the circle
+strokeDashoffset={strokeDashoffset} // How much of the circle is *not* drawn (the gap)
 className="transition-all duration-1000 ease-linear"
 />
 <defs>
