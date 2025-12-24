@@ -1,7 +1,7 @@
 // app/page.tsx - FIXED: Preserves bar_id through navigation
 'use client';
 
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 
@@ -9,6 +9,7 @@ import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [manualCode, setManualCode] = useState('');
   
   useEffect(() => {
     // Check if there's a slug in the URL (from QR code scan)
@@ -24,6 +25,15 @@ function LandingContent() {
       console.log('✅ Stored bar slug in sessionStorage:', slug);
     }
   }, [searchParams]);
+
+  const handleManualSubmit = () => {
+    if (manualCode.trim()) {
+      sessionStorage.setItem('scanned_bar_slug', manualCode.trim());
+      router.push(`/start?bar=${manualCode.trim()}`);
+    } else {
+      alert('Please enter a valid bar slug');
+    }
+  };
 
   const handleStart = () => {
     const slug = searchParams.get('bar') || searchParams.get('slug') || sessionStorage.getItem('scanned_bar_slug');
@@ -90,6 +100,29 @@ function LandingContent() {
               </div>
             </div>
           ))}
+        </div>
+        
+        {/* Manual Code Entry */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Or enter your bar slug manually:
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="Enter bar slug (e.g., sunset-lounge)"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
+            />
+            <button
+              onClick={handleManualSubmit}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+            >
+              Go
+            </button>
+          </div>
         </div>
         
         {/* Debug info (remove in production) */}
