@@ -62,9 +62,6 @@ export default function MenuPage() {
     return category?.image_url || null;
   };
 
-  const [showTimer, setShowTimer] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(300);
-
   const menuRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const paymentRef = useRef<HTMLDivElement>(null);
@@ -104,32 +101,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     loadTabData();
-    const interval = setInterval(loadTabData, 5000);
-    const cartData = sessionStorage.getItem('cart');
-    if (cartData) {
-      try {
-        setCart(JSON.parse(cartData));
-      } catch (e) {
-        sessionStorage.removeItem('cart');
-      }
-    }
-    return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (showTimer && timeRemaining > 0) {
-      const timer = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1) {
-            setShowTimer(false);
-            return 300;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [showTimer, timeRemaining]);
 
   const loadTabData = async () => {
     const tabData = sessionStorage.getItem('currentTab');
@@ -417,9 +389,6 @@ export default function MenuPage() {
       setCart([]);
       setShowCart(false);
       
-      setShowTimer(true);
-      setTimeRemaining(300);
-      
       await loadTabData();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
@@ -477,7 +446,20 @@ export default function MenuPage() {
     return `${Math.floor(seconds / 3600)}h ago`;
   };
 
-  const progress = ((300 - timeRemaining) / 300) * 100;
+  const getPendingOrderTime = () => {
+    const pendingOrder = orders.find(o => o.status === 'pending' && o.initiated_by === 'customer');
+    if (!pendingOrder) return null;
+    
+    const orderTime = new Date(pendingOrder.created_at).getTime();
+    const now = new Date().getTime();
+    const elapsedSeconds = Math.floor((now - orderTime) / 1000);
+    
+    return {
+      elapsed: elapsedSeconds,
+      orderId: pendingOrder.id,
+      orderTime: pendingOrder.created_at
+    };
+  };
 
   if (loading) {
     return (
@@ -539,49 +521,56 @@ export default function MenuPage() {
         </div>
       )}
 
-      {showTimer && (
-        <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
-          <p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Order is Being Prepared</p>
-          
-          <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
-            
-            <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-              <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-              <circle
-                cx="50%"
-                cy="50%"
-                r="45%"
-                fill="none"
-                stroke="url(#gradient)"
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 45} ${2 * Math.PI * 45}`}
-                strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
-                className="transition-all duration-1000 ease-linear"
-              />
-              <defs>
-                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#f97316" />
-                  <stop offset="100%" stopColor="#dc2626" />
-                </linearGradient>
-              </defs>
-            </svg>
-            
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <Clock size={32} className="text-orange-500 mb-2 animate-pulse" />
-              <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
-                {formatTime(timeRemaining)}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Estimated time</p>
-            </div>
+      {(() => {
+  const pendingTime = getPendingOrderTime();
+  if (!pendingTime) return null;
+  
+  const progress = Math.min((pendingTime.elapsed / 300) * 100, 100);
+  
+  return (
+    <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
+      <p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Order is Being Prepared</p>
+      
+      <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
+        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
+        
+        <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+          <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#e5e7eb" strokeWidth="8" />
+          <circle
+            cx="50%"
+            cy="50%"
+            r="45%"
+            fill="none"
+            stroke="url(#gradient)"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${2 * Math.PI * 45} ${2 * Math.PI * 45}`}
+            strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
+            className="transition-all duration-1000 ease-linear"
+          />
+          <defs>
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f97316" />
+              <stop offset="100%" stopColor="#dc2626" />
+            </linearGradient>
+          </defs>
+        </svg>
+        
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <Clock size={32} className="text-orange-500 mb-2 animate-pulse" />
+          <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
+            {formatTime(pendingTime.elapsed)}
           </div>
-          
-          <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
-            We'll notify you when your order is ready! Feel free to browse the menu.
-          </p>
+          <p className="text-xs text-gray-500 mt-2">Waiting for staff</p>
         </div>
-      )}
+      </div>
+      
+      <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
+        We'll notify you when your order is confirmed!
+      </p>
+    </div>
+  );
+})()}
 
       <div ref={menuRef} className="bg-white relative overflow-hidden">
         <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
