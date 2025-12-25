@@ -50,7 +50,7 @@ export default function TabsPage() {
       console.log('✅ Tabs loaded:', tabsData?.length || 0, 'tabs for bar:', bar.name);
 
       const tabsWithDetails = await Promise.all(
-        (tabsData || []).map(async (tab) => {
+        (tabsData || []).map(async (tab: any) => {
           const [ordersResult, paymentsResult] = await Promise.all([
             supabase
               .from('tab_orders')

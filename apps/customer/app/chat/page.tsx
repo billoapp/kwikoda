@@ -48,7 +48,7 @@ export default function ChatPage() {
     const normalizedText = text.toLowerCase();
     const foundItems: any[] = [];
     
-    MOCK_MENU.forEach(item => {
+    MOCK_MENU.forEach((item: any) => {
       const itemName = item.name.toLowerCase();
       if (normalizedText.includes(itemName)) {
         const quantityMatch = normalizedText.match(new RegExp(`(\\d+)\\s*x?\\s*${itemName}|${itemName}\\s*x?\\s*(\\d+)`));
@@ -59,8 +59,8 @@ export default function ChatPage() {
 
     // Shortcuts
     if (normalizedText.includes('beer') || normalizedText.includes('tusker')) {
-      const tusker = MOCK_MENU.find(i => i.name === 'Tusker');
-      if (tusker && !foundItems.find(i => i.id === tusker.id)) {
+      const tusker = MOCK_MENU.find((i: any) => i.name === 'Tusker');
+      if (tusker && !foundItems.find((i: any) => i.id === tusker.id)) {
         const quantityMatch = normalizedText.match(/(\d+)\s*beer|beer\s*(\d+)/);
         const quantity = quantityMatch ? parseInt(quantityMatch[1] || quantityMatch[2]) : 1;
         foundItems.push({ ...tusker, quantity });
@@ -87,8 +87,8 @@ export default function ChatPage() {
       if (foundItems.length > 0) {
         // Add to cart
         const newCart = [...cart];
-        foundItems.forEach(item => {
-          const existing = newCart.find(c => c.id === item.id);
+        foundItems.forEach((item: any) => {
+          const existing = newCart.find((c: any) => c.id === item.id);
           if (existing) {
             existing.quantity += item.quantity;
           } else {
@@ -98,8 +98,8 @@ export default function ChatPage() {
         setCart(newCart);
         sessionStorage.setItem('cart', JSON.stringify(newCart));
 
-        const itemsList = foundItems.map(i => `${i.quantity}x ${i.name}`).join(', ');
-        const total = foundItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+        const itemsList = foundItems.map((i: any) => `${i.quantity}x ${i.name}`).join(', ');
+        const total = foundItems.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0);
         
         const staffMsg = {
           id: Math.random().toString(36).substr(2, 9),
@@ -148,7 +148,7 @@ export default function ChatPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
-        {messages.map(msg => (
+        {messages.map((msg: any) => (
           <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${
               msg.sender === 'user' 
@@ -169,7 +169,7 @@ export default function ChatPage() {
       {messages.length > 0 && (
         <div className="px-4 py-2 bg-white border-t">
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {quickReplies.map((reply, idx) => (
+            {quickReplies.map((reply: any, idx: number) => (
               <button
                 key={idx}
                 onClick={() => setInputMessage(reply)}
