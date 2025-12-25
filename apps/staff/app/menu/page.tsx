@@ -168,7 +168,7 @@ export default function MenuManagementPage() {
         .map(bp => bp.custom_product_id);
 
       const unpublished = (data || []).filter(
-        cp => !publishedCustomIds.includes(cp.id)
+        (cp: any) => !publishedCustomIds.includes(cp.id) && cp.id !== editingCustom
       );
 
       setCustomProducts(unpublished);
