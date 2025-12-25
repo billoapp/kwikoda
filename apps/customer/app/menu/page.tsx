@@ -40,7 +40,9 @@ const [phoneNumber, setPhoneNumber] = useState('');
 const [menuExpanded, setMenuExpanded] = useState(true);
 const [scrollY, setScrollY] = useState(0);
 const [autoCloseMenu, setAutoCloseMenu] = useState(true);
+const [currentTime, setCurrentTime] = useState(Date.now());
 const menuCollapseTimerRef = useRef<NodeJS.Timeout | null>(null);
+const realTimeTimerRef = useRef<NodeJS.Timeout | null>(null);
 // Helper function to get display image with category fallback
 const getDisplayImage = (product: Product, categoryName?: string) => {
 if (!product) return null;
@@ -63,6 +65,20 @@ setScrollY(window.scrollY);
 window.addEventListener('scroll', handleScroll, { passive: true });
 return () => window.removeEventListener('scroll', handleScroll);
 }, []);
+// Real-time timer effect
+useEffect(() => {
+  // Update current time every second
+  realTimeTimerRef.current = setInterval(() => {
+    setCurrentTime(Date.now());
+  }, 1000);
+
+  return () => {
+    if (realTimeTimerRef.current) {
+      clearInterval(realTimeTimerRef.current);
+    }
+  };
+}, []);
+
 // Auto-collapse menu after 30 seconds
 useEffect(() => {
 if (menuExpanded && autoCloseMenu) {
@@ -329,6 +345,10 @@ price: item.price,
 total: item.price * item.quantity
 }));
 const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+// Store the current time before creating the order
+const orderSubmissionTime = new Date().toISOString();
+    
 const { error } = await supabase
 .from('tab_orders')
 .insert({
@@ -340,16 +360,13 @@ initiated_by: 'customer'
 });
 if (error) throw error;
 
-// NEW: Store the submission time for the *oldest* pending order *after* insertion
-// The time for the *newly created* order is the current time.
-// After insertion, `loadTabData` is called, which will run `getPendingOrderTime` again.
-// `getPendingOrderTime` will find the oldest pending order (which might be this new one or an existing older one)
-// and manage the `sessionStorage` accordingly.
+// Store the submission time for persistence across browser sessions
+sessionStorage.setItem('oldestPendingCustomerOrderTime', orderSubmissionTime);
 
 sessionStorage.removeItem('cart');
 setCart([]);
 setShowCart(false);
-await loadTabData(); // Reload to get the new order status and update stored time if needed
+await loadTabData(); // Reload to get the new order status
 window.scrollTo({ top: 0, behavior: 'smooth' });
 } catch (error: any) {
 console.error('Error creating order:', error);
@@ -432,7 +449,8 @@ orderTime = new Date(oldestPendingOrder.created_at).getTime();
 sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
 }
 
-const now = new Date().getTime();
+// Use the real-time currentTime instead of calculating new Date().getTime()
+const now = currentTime;
 const elapsedSeconds = Math.floor((now - orderTime) / 1000);
 
 return {
@@ -504,40 +522,42 @@ if (!pendingTime) return null;
 // --- Timer Display Logic for Elapsed Time of Oldest Pending Order ---
 const elapsedSeconds = pendingTime.elapsed;
 
-// Determine visual state based on elapsed time
-let visualState: 'green' | 'yellow' | 'red' = 'green';
-if (elapsedSeconds >= 420) { // 7 minutes
-    visualState = 'red';
-} else if (elapsedSeconds >= 300) { // 5 minutes
-    visualState = 'yellow';
-}
+// Define 15-minute (900 seconds) full rotation
+const maxTimeSeconds = 900; // 15 minutes
+const elapsedPercentage = Math.min((elapsedSeconds / maxTimeSeconds) * 100, 100);
 
-// Calculate how much of the ring should be filled based on elapsed time within a *fixed maximum window*.
-// This creates the effect where the ring fills up to a point and then stays full or changes color.
-// Let's define a maximum window for the visual progress (e.g., 8 minutes = 480 seconds).
-const maxVisualTimeSeconds = 480; // 8 minutes
-const elapsedPercentage = Math.min((elapsedSeconds / maxVisualTimeSeconds) * 100, 100);
+// Calculate color gradient based on elapsed time (gradual change to red)
+const getStrokeColor = (percentage: number) => {
+  if (percentage <= 33) {
+    // Green to yellow (0-5 minutes)
+    return "url(#gradient-green)";
+  } else if (percentage <= 66) {
+    // Yellow to orange (5-10 minutes)
+    return "url(#gradient-yellow)";
+  } else {
+    // Orange to red (10-15 minutes)
+    return "url(#gradient-red)";
+  }
+};
 
 // The circumference of the circle with radius 45 is 2 * Math.PI * 45
 const circumference = 2 * Math.PI * 45;
-// strokeDashoffset is the length of the gap. Start with the full circumference (empty ring)
-// and subtract the filled portion.
-const strokeDashoffset = circumference * (1 - elapsedPercentage / 100);
+// Snake/worm effect: starts from 12 o'clock and grows clockwise
+// Use stroke-dasharray to create a growing segment instead of a gap
+const segmentLength = (elapsedPercentage / 100) * circumference; // How long the snake should be
+const strokeDasharray = `${segmentLength} ${circumference}`; // Segment length + gap
+// Position the start at 12 o'clock (top of circle)
+const startOffset = circumference * 0.25; // 25% to start from 12 o'clock
+const strokeDashoffset = startOffset; // Fixed offset to start at 12 o'clock
 
-// Determine stroke color based on visual state
-let strokeColor = "url(#gradient-green)";
-if (visualState === 'yellow') {
-    strokeColor = "url(#gradient-yellow)";
-} else if (visualState === 'red') {
-    strokeColor = "url(#gradient-red)";
-}
+const strokeColor = getStrokeColor(elapsedPercentage);
 
 return (
 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
 <p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Oldest Order is Being Prepared</p>
 <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
-<svg className="absolute inset-0 w-full h-full transform -rotate-90">
+<svg className="absolute inset-0 w-full h-full">
 <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#e5e7eb" strokeWidth="8" />
 <circle
 cx="50%"
@@ -547,8 +567,8 @@ fill="none"
 stroke={strokeColor}
 strokeWidth="8"
 strokeLinecap="round"
-strokeDasharray={circumference} // Total length of the circle
-strokeDashoffset={strokeDashoffset} // How much of the circle is *not* drawn (the gap)
+strokeDasharray={strokeDasharray} // Snake segment length + gap
+strokeDashoffset={strokeDashoffset} // Fixed offset to start at 12 o'clock
 className="transition-all duration-1000 ease-linear"
 />
 <defs>
@@ -556,9 +576,9 @@ className="transition-all duration-1000 ease-linear"
 <stop offset="0%" stopColor="#10B981" /> {/* Green-500 */}
 <stop offset="100%" stopColor="#059669" /> {/* Green-700 */}
 </linearGradient>
-<linearGradient id="gradient-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
-<stop offset="0%" stopColor="#F59E0B" /> {/* Yellow-500 */}
-<stop offset="100%" stopColor="#D97706" /> {/* Yellow-700 */}
+<linearGradient id="gradient-orange" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stopColor="#FB923C" /> {/* Orange-400 */}
+<stop offset="100%" stopColor="#EA580C" /> {/* Orange-600 */}
 </linearGradient>
 <linearGradient id="gradient-red" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stopColor="#EF4444" /> {/* Red-500 */}

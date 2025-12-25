@@ -39,8 +39,8 @@ function ConsentContent() {
     }
 
     if (!slug) {
-      setError('No bar specified. Please scan a valid QR code.');
-      setLoading(false);
+      // Redirect back to main page to select a bar
+      router.push('/');
       return;
     }
 

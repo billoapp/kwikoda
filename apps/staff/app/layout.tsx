@@ -5,7 +5,12 @@ import { BarProvider } from '@/contexts/page';
 export const metadata: Metadata = {
   title: 'Tabz Staff - Bar Management',
   description: 'Manage tabs, orders, and payments for your bar',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

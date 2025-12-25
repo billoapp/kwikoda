@@ -14,42 +14,95 @@ export default function TabDetailPage() {
   const [tab, setTab] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('');
+  const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
 
   useEffect(() => {
     loadTabData();
+  }, [tabId]);
+
+  // Add this useEffect after line 21 for real-time notifications
+  useEffect(() => {
+    if (!tabId) return;
+
+    // Subscribe to new orders for this specific tab
+    const subscription = supabase
+      .channel(`tab_orders_${tabId}`)
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'tab_orders',
+          filter: `tab_id=eq.${tabId}`
+        }, 
+        (payload) => {
+          console.log('New order received:', payload.new);
+          
+          // Only show notification for customer orders (not staff orders)
+          if (payload.new.initiated_by === 'customer') {
+            setNewOrderNotification(payload.new);
+            
+            // Auto-hide notification after 10 seconds
+            setTimeout(() => {
+              setNewOrderNotification(null);
+            }, 10000);
+          }
+          
+          // Refresh tab data to show the new order
+          loadTabData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [tabId]);
 
   const loadTabData = async () => {
     setLoading(true);
     
     try {
+      // First get the tab data
       const { data: tabData, error: tabError } = await supabase
         .from('tabs')
-        .select('*, bars(id, name, location)')
+        .select('*')
         .eq('id', tabId)
         .single();
 
       if (tabError) throw tabError;
 
-      const [ordersResult, paymentsResult] = await Promise.all([
-        supabase
-          .from('tab_orders')
-          .select('*')
-          .eq('tab_id', tabId)
-          .order('created_at', { ascending: false }),
-        
-        supabase
-          .from('tab_payments')
-          .select('*')
-          .eq('tab_id', tabId)
-          .order('created_at', { ascending: false })
-      ]);
+      // Then get the bar data separately
+      const { data: barData, error: barError } = await supabase
+        .from('bars')
+        .select('id, name, location')
+        .eq('id', tabData.bar_id)
+        .single();
+
+      if (barError) throw barError;
+
+      // Get orders
+      const { data: ordersResult, error: ordersError } = await supabase
+        .from('tab_orders')
+        .select('*')
+        .eq('tab_id', tabId)
+        .order('created_at', { ascending: false });
+
+      if (ordersError) throw ordersError;
+
+      // Get payments
+      const { data: paymentsResult, error: paymentsError } = await supabase
+        .from('tab_payments')
+        .select('*')
+        .eq('tab_id', tabId)
+        .order('created_at', { ascending: false });
+
+      if (paymentsError) throw paymentsError;
 
       const fullTabData = {
         ...tabData,
-        bar: tabData.bars,
-        orders: ordersResult.data || [],
-        payments: paymentsResult.data || []
+        bar: barData,
+        orders: ordersResult || [],
+        payments: paymentsResult || []
       };
 
       console.log('✅ Tab loaded:', fullTabData);
@@ -272,6 +325,51 @@ export default function TabDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Add this notification banner after line 226 (after the header div) */}
+        {newOrderNotification && (
+          <div className="bg-green-500 text-white p-4 animate-pulse">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-white bg-opacity-20 rounded-full p-2">
+                  <Plus size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">New Customer Order!</p>
+                  <p className="text-sm opacity-90">
+                    {/* Fixed error handling for items */}
+                    {(() => {
+                      try {
+                        const items = typeof newOrderNotification.items === 'string' 
+                          ? JSON.parse(newOrderNotification.items) 
+                          : newOrderNotification.items;
+                        return Array.isArray(items) ? items.length : 0;
+                      } catch (e) {
+                        console.error('Error parsing items:', e);
+                        return 0;
+                      }
+                    })()} items • 
+                    KSh {parseFloat(newOrderNotification.total).toFixed(0)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleMarkServed(newOrderNotification.id, newOrderNotification.initiated_by)}
+                  className="bg-white text-green-600 px-4 py-2 rounded-lg font-semibold hover:bg-green-50"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() => setNewOrderNotification(null)}
+                  className="bg-white bg-opacity-20 px-4 py-2 rounded-lg font-semibold hover:bg-opacity-30"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">

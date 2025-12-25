@@ -1,0 +1,37 @@
+// Add this useEffect after line 21 for real-time notifications
+useEffect(() => {
+  if (!tabId) return;
+
+  // Subscribe to new orders for this specific tab
+  const subscription = supabase
+    .channel(`tab_orders_${tabId}`)
+    .on('postgres_changes', 
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'tab_orders',
+        filter: `tab_id=eq.${tabId}`
+      }, 
+      (payload) => {
+        console.log('New order received:', payload.new);
+        
+        // Only show notification for customer orders (not staff orders)
+        if (payload.new.initiated_by === 'customer') {
+          setNewOrderNotification(payload.new);
+          
+          // Auto-hide notification after 10 seconds
+          setTimeout(() => {
+            setNewOrderNotification(null);
+          }, 10000);
+        }
+        
+        // Refresh tab data to show the new order
+        loadTabData();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, [tabId]);
