@@ -4,6 +4,11 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+// Guard against missing Supabase client during build
+if (!supabase) {
+  throw new Error('Supabase client not initialized. Check environment variables.');
+}
+
 interface Product {
   id: string;
   name: string;
