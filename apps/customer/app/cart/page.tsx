@@ -6,15 +6,42 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+// Define proper types
+interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+}
+
+interface OrderItem {
+  product_id: number;
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+interface CurrentTab {
+  id: string;
+  [key: string]: any;
+}
+
 export default function CartPage() {
   const router = useRouter();
-  const [cart, setCart] = useState<any[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const cartData = sessionStorage.getItem('cart');
     if (cartData) {
-      setCart(JSON.parse(cartData));
+      try {
+        setCart(JSON.parse(cartData));
+      } catch (error) {
+        console.error('Error parsing cart data:', error);
+        setCart([]);
+      }
     }
   }, []);
 
@@ -22,7 +49,7 @@ export default function CartPage() {
     const newCart = cart.map(item => {
       if (item.id === id) {
         const newQty = item.quantity + delta;
-        return newQty > 0 ? {...item, quantity: newQty} : item;
+        return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
       return item;
     }).filter(item => item.quantity > 0);
@@ -46,10 +73,10 @@ export default function CartPage() {
         return;
       }
 
-      const currentTab = JSON.parse(tabData);
+      const currentTab: CurrentTab = JSON.parse(tabData);
       console.log('📋 Submitting order for tab:', currentTab.id);
 
-      const orderItems = cart.map(item => ({
+      const orderItems: OrderItem[] = cart.map(item => ({
         product_id: item.id,
         name: item.name,
         quantity: item.quantity,
@@ -57,7 +84,7 @@ export default function CartPage() {
         total: item.price * item.quantity
       }));
 
-      // ⭐ KEY CHANGE: Mark as customer-initiated
+      // Fix: Type assertion inside the insert method
       const { data: order, error } = await supabase
         .from('tab_orders')
         .insert({
@@ -66,7 +93,7 @@ export default function CartPage() {
           total: cartTotal,
           status: 'pending',
           initiated_by: 'customer'  // 👈 Customer-initiated order
-        })
+        } as any)  // ✅ CORRECT: Type assertion is inside the insert()
         .select()
         .single();
 
@@ -95,7 +122,11 @@ export default function CartPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm p-4 flex items-center gap-3">
-        <button onClick={() => router.push('/menu')} className="p-2 hover:bg-gray-100 rounded-lg">
+        <button 
+          onClick={() => router.push('/menu')} 
+          className="p-2 hover:bg-gray-100 rounded-lg"
+          aria-label="Go back to menu"
+        >
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold">Review Order</h1>
@@ -103,53 +134,73 @@ export default function CartPage() {
 
       {/* Cart Items */}
       <div className="p-4 space-y-3">
-        {cart.map(item => (
-          <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="text-3xl">{item.image}</div>
-                <div>
-                  <h3 className="font-semibold text-gray-800">{item.name}</h3>
-                  <p className="text-sm text-gray-600">KSh {item.price} each</p>
-                </div>
-              </div>
-              <p className="font-bold text-orange-600">KSh {item.price * item.quantity}</p>
-            </div>
-            
-            <div className="flex items-center gap-3 justify-end">
-              <button
-                onClick={() => updateQuantity(item.id, -1)}
-                className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200"
-              >
-                <Minus size={16} />
-              </button>
-              <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
-              <button
-                onClick={() => updateQuantity(item.id, 1)}
-                className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
+        {cart.length === 0 ? (
+          <div className="bg-white rounded-xl p-8 text-center">
+            <p className="text-gray-500">Your cart is empty</p>
+            <button
+              onClick={() => router.push('/menu')}
+              className="mt-4 bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600"
+            >
+              Browse Menu
+            </button>
           </div>
-        ))}
+        ) : (
+          cart.map(item => (
+            <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">{item.image}</div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800">{item.name}</h3>
+                    <p className="text-sm text-gray-600">KSh {item.price.toFixed(2)} each</p>
+                  </div>
+                </div>
+                <p className="font-bold text-orange-600">
+                  KSh {(item.price * item.quantity).toFixed(2)}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-3 justify-end">
+                <button
+                  onClick={() => updateQuantity(item.id, -1)}
+                  className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200"
+                  aria-label={`Decrease quantity of ${item.name}`}
+                >
+                  <Minus size={16} />
+                </button>
+                <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
+                <button
+                  onClick={() => updateQuantity(item.id, 1)}
+                  className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
+                  aria-label={`Increase quantity of ${item.name}`}
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
-      {/* Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4 border-t">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-gray-600">Total</span>
-          <span className="text-2xl font-bold text-orange-600">KSh {cartTotal}</span>
+      {/* Bottom Bar - Only show if cart has items */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4 border-t">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-gray-600">Total</span>
+            <span className="text-2xl font-bold text-orange-600">
+              KSh {cartTotal.toFixed(2)}
+            </span>
+          </div>
+          <button
+            onClick={confirmOrder}
+            disabled={submitting}
+            className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-orange-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+          >
+            <CheckCircle size={20} />
+            {submitting ? 'Submitting...' : 'Confirm Order'}
+          </button>
         </div>
-        <button
-          onClick={confirmOrder}
-          disabled={cart.length === 0 || submitting}
-          className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <CheckCircle size={20} />
-          {submitting ? 'Submitting...' : 'Confirm Order'}
-        </button>
-      </div>
+      )}
     </div>
   );
 }

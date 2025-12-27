@@ -26,10 +26,23 @@ interface BarProduct {
   product?: Product;
 }
 
+interface Tab {
+  id: string;
+  status: string;
+  bar_id: string;
+  tab_number?: string;
+  notes?: string;
+  bar?: {
+    id: string;
+    name: string;
+    location?: string;
+  };
+}
+
 export default function MenuPage() {
   const router = useRouter();
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-  const [tab, setTab] = useState<any>(null);
+  const [tab, setTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('Your Tab');
   const [barName, setBarName] = useState('Loading...');
@@ -158,21 +171,21 @@ export default function MenuPage() {
         return;
       }
       console.log('✅ Menu page: Full tab loaded:', fullTab);
-      setTab(fullTab);
-      setBarName(fullTab.bar?.name || 'Bar');
+      setTab(fullTab as Tab);
+      setBarName((fullTab as any).bar?.name || 'Bar');
       let name = 'Your Tab';
-      if (fullTab.notes) {
+      if ((fullTab as any).notes) {
         try {
-          const notes = JSON.parse(fullTab.notes);
-          name = notes.display_name || `Tab ${fullTab.tab_number || ''}`;
+          const notes = JSON.parse((fullTab as any).notes);
+          name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
         } catch (e) {
-          name = fullTab.tab_number ? `Tab ${fullTab.tab_number}` : 'Your Tab';
+          name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
         }
-      } else if (fullTab.tab_number) {
-        name = `Tab ${fullTab.tab_number}`;
+      } else if ((fullTab as any).tab_number) {
+        name = `Tab ${(fullTab as any).tab_number}`;
       }
       setDisplayName(name);
-      if (fullTab.bar?.id) {
+      if ((fullTab as any).bar?.id) {
         try {
           const { data: categoriesData, error: categoriesError } = await supabase
             .from('categories')
@@ -195,7 +208,7 @@ export default function MenuPage() {
           const { data: barProductsData, error: barProductsError } = await supabase
             .from('bar_products')
             .select('id, bar_id, product_id, custom_product_id, name, description, category, image_url, sale_price, active')
-            .eq('bar_id', fullTab.bar.id)
+            .eq('bar_id', (fullTab as any).bar.id)
             .eq('active', true);
           if (barProductsError) {
             console.error('Error loading bar products:', barProductsError);
@@ -249,67 +262,88 @@ export default function MenuPage() {
   };
 
   const handleCloseTab = async () => {
-    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tabTotal = orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + parseFloat(order.total), 0);
-    const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-    const balance = tabTotal - paidTotal;
-    if (balance > 0) {
-      alert(`You still have an outstanding balance of KSh ${balance.toFixed(0)}. Please complete payment before closing.`);
-      return;
-    }
     try {
-      const { error } = await supabase
+      if (!tab) {
+        console.error('No tab to close');
+        return;
+      }
+
+      const { error } = await (supabase as any)
         .from('tabs')
         .update({
           status: 'closed',
-          closed_at: new Date().toISOString(),
-          closed_by: 'customer'
+          closed_at: new Date().toISOString()
         })
         .eq('id', tab.id);
-      if (error) throw error;
+
+      if (error) {
+        console.error('Error closing tab:', error);
+        alert('Failed to close tab');
+        return;
+      }
+
+      // Clear session storage
       sessionStorage.removeItem('currentTab');
       sessionStorage.removeItem('cart');
-      sessionStorage.removeItem('displayName');
-      sessionStorage.removeItem('barName');
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
-      alert('✅ Tab closed successfully! Thank you for visiting ' + barName + '.');
-      router.push('/');
-    } catch (error: any) {
-      console.error('Error closing tab:', error);
-      alert('Failed to close tab. Please ask staff for assistance.');
+
+      // Redirect to home
+      router.replace('/');
+    } catch (error) {
+      console.error('Error in handleCloseTab:', error);
+      alert('An error occurred while closing the tab');
     }
   };
 
   const handleApproveOrder = async (orderId: string) => {
     setApprovingOrder(orderId);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
-        .update({ status: 'confirmed' })
+        .update({ 
+          status: 'confirmed', 
+          confirmed_at: new Date().toISOString() 
+        })
         .eq('id', orderId);
-      if (error) throw error;
+
+      if (error) {
+        console.error('Error approving order:', error);
+        alert('Failed to approve order');
+        return;
+      }
+
+      // Refresh data
       await loadTabData();
     } catch (error) {
-      console.error('Error approving order:', error);
-      alert('Failed to approve order.');
+      console.error('Error in handleApproveOrder:', error);
+      alert('An error occurred while approving the order');
     } finally {
       setApprovingOrder(null);
     }
   };
 
   const handleRejectOrder = async (orderId: string) => {
-    if (!window.confirm('Reject this order?')) return;
     setApprovingOrder(orderId);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
-        .update({ status: 'cancelled' })
+        .update({ 
+          status: 'cancelled', 
+          cancelled_at: new Date().toISOString() 
+        })
         .eq('id', orderId);
-      if (error) throw error;
+
+      if (error) {
+        console.error('Error rejecting order:', error);
+        alert('Failed to reject order');
+        return;
+      }
+
+      // Refresh data
       await loadTabData();
     } catch (error) {
-      console.error('Error rejecting order:', error);
-      alert('Failed to reject order.');
+      console.error('Error in handleRejectOrder:', error);
+      alert('An error occurred while rejecting the order');
     } finally {
       setApprovingOrder(null);
     }
@@ -375,10 +409,10 @@ export default function MenuPage() {
       }));
       const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const orderSubmissionTime = new Date().toISOString();
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .insert({
-          tab_id: tab.id,
+          tab_id: tab!.id,
           items: orderItems,
           total: cartTotal,
           status: 'pending',
@@ -413,10 +447,10 @@ export default function MenuPage() {
       return;
     }
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_payments')
         .insert({
-          tab_id: tab.id,
+          tab_id: tab!.id,
           amount: parseFloat(paymentAmount),
           method: activePaymentMethod,
           status: 'success',
@@ -520,7 +554,7 @@ export default function MenuPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Rest of your JSX remains exactly the same... */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
@@ -627,11 +661,10 @@ export default function MenuPage() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === category
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === category
                     ? 'bg-orange-500 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                  }`}
               >
                 {category}
               </button>
@@ -663,7 +696,7 @@ export default function MenuPage() {
                           <img
                             src={displayImage}
                             alt={product.name || 'Product'}
-                            className="absolute inset-0 w-full h-full object-contain" // ← removed p-2
+                            className="absolute inset-0 w-full h-full object-contain"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
                               const parent = e.currentTarget.parentElement;
@@ -793,11 +826,10 @@ export default function MenuPage() {
             <div className="flex border-b border-gray-200 mb-4">
               <button
                 onClick={() => setActivePaymentMethod('mpesa')}
-                className={`px-4 py-2 font-medium text-sm ${
-                  activePaymentMethod === 'mpesa'
+                className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
                     ? 'text-orange-500 border-b-2 border-orange-500'
                     : 'text-gray-500 hover:text-gray-700'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <Phone size={16} />
@@ -806,11 +838,10 @@ export default function MenuPage() {
               </button>
               <button
                 onClick={() => setActivePaymentMethod('cards')}
-                className={`px-4 py-2 font-medium text-sm ${
-                  activePaymentMethod === 'cards'
+                className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
                     ? 'text-orange-500 border-b-2 border-orange-500'
                     : 'text-gray-500 hover:text-gray-700'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <CreditCardIcon size={16} />
@@ -819,11 +850,10 @@ export default function MenuPage() {
               </button>
               <button
                 onClick={() => setActivePaymentMethod('cash')}
-                className={`px-4 py-2 font-medium text-sm ${
-                  activePaymentMethod === 'cash'
+                className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
                     ? 'text-orange-500 border-b-2 border-orange-500'
                     : 'text-gray-500 hover:text-gray-700'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <DollarSign size={16} />

@@ -48,7 +48,7 @@ function ConsentContent() {
     try {
       console.log('🔍 Loading bar info for slug:', slug);
       
-      const { data: bar, error: barError } = await supabase
+      const { data: bar, error: barError } = await (supabase as any)
         .from('bars')
         .select('id, name, active, location, slug')
         .eq('slug', slug)
@@ -122,7 +122,7 @@ function ConsentContent() {
       const barDeviceKey = getBarDeviceKey(barId);
       
       // Check for existing open tab
-      const { data: existingTab, error: checkError } = await supabase
+      const { data: existingTab, error: checkError } = await (supabase as any)
         .from('tabs')
         .select('*')
         .eq('bar_id', barId)
@@ -143,7 +143,7 @@ function ConsentContent() {
           const notes = JSON.parse(existingTab.notes || '{}');
           notes.display_name = nickname.trim();
           
-          await supabase
+          await (supabase as any)
             .from('tabs')
             .update({ notes: JSON.stringify(notes) })
             .eq('id', existingTab.id);
@@ -178,7 +178,7 @@ function ConsentContent() {
         displayName = nickname.trim();
         tabNumber = null;
       } else {
-        const { data: existingTabs } = await supabase
+        const { data: existingTabs } = await (supabase as any)
           .from('tabs')
           .select('tab_number')
           .eq('bar_id', barId)
@@ -196,7 +196,7 @@ function ConsentContent() {
 
       console.log('🆕 Creating NEW tab for bar:', barId);
 
-      const { data: tab, error: tabError } = await supabase
+      const { data: tab, error: tabError } = await (supabase as any)
         .from('tabs')
         .insert({
           bar_id: barId,

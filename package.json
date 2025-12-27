@@ -23,10 +23,16 @@
     "type-check": "pnpm --recursive type-check"
   },
   "devDependencies": {
-    "turbo": "^2.7.2",
+    "@types/node": "^20.19.27",
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
+    "turbo": "^2.7.2",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@hcaptcha/react-hcaptcha": "^1.17.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "@vercel/node": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0",

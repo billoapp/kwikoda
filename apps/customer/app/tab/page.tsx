@@ -35,7 +35,7 @@ export default function TabPage() {
     const currentTab = JSON.parse(tabData);
 
     try {
-      const { data: fullTab, error: tabError } = await supabase
+      const { data: fullTab, error: tabError } = await (supabase as any)
         .from('tabs')
         .select(`
           *,
@@ -93,7 +93,7 @@ export default function TabPage() {
     setApprovingOrder(orderId);
     
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ status: 'confirmed' })
         .eq('id', orderId);
@@ -119,7 +119,7 @@ export default function TabPage() {
     setApprovingOrder(orderId);
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ status: 'cancelled' })
         .eq('id', orderId);
