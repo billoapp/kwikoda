@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 // Load environment variables from .env.local
 config({ path: '.env.local' });
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseUrl = process.env.PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY!; // Use service role key
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
