@@ -3,7 +3,7 @@
   "devCommand": "cd ../.. && pnpm run dev:customer",
   "installCommand": "cd ../.. && pnpm install",
   "framework": "nextjs",
-  "outputDirectory": ".next",
+  "outputDirectory": "apps/customer/.next",
   "git": {
     "deploymentEnabled": {
       "main": true,
@@ -11,8 +11,10 @@
     }
   },
   "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "https://bkaigyrrzsqbfscyznzw.supabase.co",
-    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_sS8TJmpBNLw5fAHNfTb9og_EurMoc49"
+    "NEXT_PUBLIC_SUPABASE_URL": "@next_public_supabase_url",
+    "SUPABASE_PUBLISHABLE_KEY": "@supabase_publishable_key",
+    "NEXT_PUBLIC_HCAPTCHA_SITE_KEY": "@next_public_hcaptcha_site_key",
+    "HCAPTCHA_SECRET_KEY": "@hcaptcha_secret_key"
   },
   "headers": [
     {
