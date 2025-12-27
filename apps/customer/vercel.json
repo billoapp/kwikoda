@@ -11,8 +11,8 @@
     }
   },
   "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase-url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase-anon-key"
+    "NEXT_PUBLIC_SUPABASE_URL": "https://bkaigyrrzsqbfscyznzw.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_sS8TJmpBNLw5fAHNfTb9og_EurMoc49"
   },
   "headers": [
     {
