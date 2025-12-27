@@ -3,7 +3,7 @@
   "devCommand": "cd ../.. && pnpm run dev:customer",
   "installCommand": "cd ../.. && pnpm install",
   "framework": "nextjs",
-  "outputDirectory": "apps/customer/.next",
+  "outputDirectory": ".next",
   "git": {
     "deploymentEnabled": {
       "main": true,
