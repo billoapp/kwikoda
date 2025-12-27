@@ -1,7 +1,14 @@
 {
   "name": "Tabz-staff",
-  "buildCommand": "cd ../.. && npm run build --workspace=apps/staff",
-  "outputDirectory": ".next",
-  "installCommand": "cd ../.. && npm install",
-  "regions": ["cdg1"]
+  "buildCommand": "pnpm --filter staff run build",
+  "outputDirectory": "apps/staff/.next",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": "nextjs",
+  "regions": ["cdg1"],
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "@public_supabase_url",
+    "SUPABASE_PUBLISHABLE_KEY": "@supabase_publishable_key",
+    "NEXT_PUBLIC_HCAPTCHA_SITE_KEY": "@next_public_hcaptcha_site_key",
+    "HCAPTCHA_SECRET_KEY": "@hcaptcha_secret_key"
+  }
 }
