@@ -1,66 +1,118 @@
 // apps/staff/app/menu/page.tsx
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X, Edit2, Save } from 'lucide-react';
+import {
+  ArrowRight,
+  Plus,
+  Trash2,
+  ShoppingCart,
+  Search,
+  Filter,
+  X,
+  Edit2,
+  Save,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface Product {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   category: string;
   image_url?: string;
   sku?: string;
+  supplier_id?: string;
+}
+
+interface Supplier {
+  id: string;
+  name: string;
+  logo_url?: string;
+  active: boolean;
+}
+
+interface Category {
+  name: string;
+  image_url?: string;
+}
+
+interface BarProduct {
+  id: string;
+  bar_id: string;
+  product_id: string | null;
+  custom_product_id: string | null;
+  name: string;
+  description: string | null;
+  category: string;
+  image_url: string | null;
+  sku: string | null;
+  sale_price: number;
+  active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+interface CustomProduct {
+  id: string;
+  bar_id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  image_url: string | null;
+  sku: string;
+  active: boolean;
+  created_at: string;
+  updated_at?: string;
 }
 
 export default function MenuManagementPage() {
   const router = useRouter();
   const [barId, setBarId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Catalog data
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Bar menu (published items)
-  const [barProducts, setBarProducts] = useState<any[]>([]);
-  const [addingPrice, setAddingPrice] = useState<any>({});
-  
+  const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
+  const [addingPrice, setAddingPrice] = useState<Record<string, string>>({});
+
   // Custom products (unpublished)
-  const [customProducts, setCustomProducts] = useState<any[]>([]);
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
-  const [newCustomItem, setNewCustomItem] = useState({ 
-    name: '', 
-    category: '', 
+  const [newCustomItem, setNewCustomItem] = useState({
+    name: '',
+    category: '',
     description: '',
-    image_url: ''
+    image_url: '',
   });
 
   // Editing states
   const [editingPrice, setEditingPrice] = useState<string | null>(null);
   const [editingCustom, setEditingCustom] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
+    name: '',
+    category: '',
+    description: '',
+    image_url: '',
+  });
 
   // Helper function to get display image with category fallback
-const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
+  const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
     if (!product) {
       return null;
     }
-    
     if (product.image_url) {
       return product.image_url;
     }
-    
-    const category = categories.find(cat => 
-      cat.name === (categoryName || product.category)
-    );
-    
+    const category = categories.find((cat) => cat.name === (categoryName || product.category));
     return category?.image_url || null;
   };
 
@@ -71,7 +123,6 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
         router.push('/login');
         return;
       }
-      
       const userBarId = user.user_metadata?.bar_id;
       if (!userBarId) {
         console.error('No bar_id in user metadata');
@@ -79,10 +130,8 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
         router.push('/login');
         return;
       }
-      
       setBarId(userBarId);
     };
-    
     checkAuth();
   }, [router]);
 
@@ -97,7 +146,6 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
   const loadCatalogData = async () => {
     try {
       setLoading(true);
-
       const { data: suppliersData, error: suppliersError } = await supabase
         .from('suppliers')
         .select('*')
@@ -127,7 +175,6 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
       setSuppliers(suppliersData || []);
       setCategories(categoriesData || []);
       setProducts(productsData || []);
-
     } catch (error) {
       console.error('Error loading catalog:', error);
       alert('Failed to load product catalog: ' + (error as any).message);
@@ -137,33 +184,28 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
   };
 
   const loadBarMenu = async () => {
-  try {
-    if (!barId) return;
+    try {
+      if (!barId) return;
+      const { data, error } = await supabase
+        .from('bar_products')
+        .select('*')
+        .eq('bar_id', barId)
+        .eq('active', true)
+        .order('created_at', { ascending: false });
 
-    // Just fetch bar_products - all data is already there!
-    const { data, error } = await supabase
-      .from('bar_products')
-      .select('*')
-      .eq('bar_id', barId)
-      .eq('active', true)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading bar_products:', error);
-      return;
+      if (error) {
+        console.error('Error loading bar_products:', error);
+        return;
+      }
+      setBarProducts(data || []);
+    } catch (error) {
+      console.error('Unexpected error in loadBarMenu:', error);
     }
-
-    setBarProducts(data || []);
-
-  } catch (error) {
-    console.error('Unexpected error in loadBarMenu:', error);
-  }
-};
+  };
 
   const loadCustomProducts = async () => {
     try {
       if (!barId) return;
-
       const { data, error } = await supabase
         .from('custom_products')
         .select('*')
@@ -173,13 +215,12 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
 
       if (error) throw error;
 
-      // Filter out ones already published
       const publishedCustomIds = barProducts
-        .filter(bp => bp.custom_product_id)
-        .map(bp => bp.custom_product_id);
+        .filter((bp) => bp.custom_product_id)
+        .map((bp) => bp.custom_product_id);
 
       const unpublished = (data || []).filter(
-        (cp: any) => !publishedCustomIds.includes(cp.id) && cp.id !== editingCustom
+        (cp) => !publishedCustomIds.includes(cp.id) && cp.id !== editingCustom
       );
 
       setCustomProducts(unpublished);
@@ -195,40 +236,35 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
     }
   }, [barProducts.length]);
 
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = products.filter((product) => {
     if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
       return false;
     }
-
     if (selectedCategory !== 'all' && product.category !== selectedCategory) {
       return false;
     }
-
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
         product.name.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query) ||
+        (product.sku && product.sku.toLowerCase().includes(query)) ||
         product.category.toLowerCase().includes(query)
       );
     }
-
     return true;
   });
 
   const isProductInMenu = (productId: string) => {
-    return barProducts.some(item => item.product_id === productId);
+    return barProducts.some((item) => item.product_id === productId);
   };
 
   // ADD GLOBAL PRODUCT to menu
-  const handleAddToMenu = async (product: any) => {
+  const handleAddToMenu = async (product: Product) => {
     const price = addingPrice[product.id];
-    
-    if (!price || price <= 0) {
+    if (!price || parseFloat(price) <= 0) {
       alert('Please enter a valid price');
       return;
     }
-
     if (!barId) {
       alert('Error: No bar selected');
       return;
@@ -247,7 +283,7 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
           image_url: product.image_url,
           sku: product.sku,
           sale_price: parseFloat(price),
-          active: true
+          active: true,
         });
 
       if (error) {
@@ -261,49 +297,46 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
       setAddingPrice({ ...addingPrice, [product.id]: '' });
       await loadBarMenu();
       alert('✅ Added to menu!');
-
     } catch (error: any) {
       console.error('Error:', error);
       alert('Failed to add item: ' + error.message);
     }
   };
 
-// PUBLISH CUSTOM PRODUCT to menu
-const handlePublishCustomProduct = async (customProduct: any) => {
-  const price = addingPrice[customProduct.id];
-  
-  if (!price || parseFloat(price) <= 0) {
-    alert('Please enter a valid price');
-    return;
-  }
+  // PUBLISH CUSTOM PRODUCT to menu
+  const handlePublishCustomProduct = async (customProduct: CustomProduct) => {
+    const price = addingPrice[customProduct.id];
+    if (!price || parseFloat(price) <= 0) {
+      alert('Please enter a valid price');
+      return;
+    }
 
-  try {
-    const { error } = await supabase
-      .from('bar_products')
-      .insert({
-        bar_id: barId,
-        product_id: null,
-        custom_product_id: customProduct.id,
-        name: customProduct.name,
-        description: customProduct.description,
-        category: customProduct.category,
-        image_url: customProduct.image_url,
-        sku: customProduct.sku,
-        sale_price: parseFloat(price),
-        active: true
-      });
+    try {
+      const { error } = await supabase
+        .from('bar_products')
+        .insert({
+          bar_id: barId,
+          product_id: null,
+          custom_product_id: customProduct.id,
+          name: customProduct.name,
+          description: customProduct.description,
+          category: customProduct.category,
+          image_url: customProduct.image_url,
+          sku: customProduct.sku,
+          sale_price: parseFloat(price),
+          active: true,
+        });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
-    await loadBarMenu();
-    alert('✅ Published to menu!');
-
-  } catch (error: any) {
-    console.error('Error publishing:', error);
-    alert('Failed to publish: ' + error.message);
-  }
-};
+      setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
+      await loadBarMenu();
+      alert('✅ Published to menu!');
+    } catch (error: any) {
+      console.error('Error publishing:', error);
+      alert('Failed to publish: ' + error.message);
+    }
+  };
 
   // CREATE CUSTOM PRODUCT (unpublished)
   const handleCreateCustomProduct = async () => {
@@ -322,7 +355,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
           description: newCustomItem.description || null,
           image_url: newCustomItem.image_url || null,
           sku: `CUSTOM-${barId}-${Date.now()}`,
-          active: true
+          active: true,
         })
         .select()
         .single();
@@ -333,21 +366,20 @@ const handlePublishCustomProduct = async (customProduct: any) => {
       setShowAddCustom(false);
       await loadCustomProducts();
       alert('✅ Custom product created! Now add a price to publish it.');
-
     } catch (error: any) {
       console.error('Error creating custom product:', error);
       alert('Failed to create: ' + error.message);
     }
   };
 
-    // UPDATE PRICE in bar_products
+  // UPDATE PRICE in bar_products
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
       const { error } = await supabase
         .from('bar_products')
         .update({
           sale_price: newPrice,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', barProductId)
         .eq('bar_id', barId);
@@ -357,7 +389,6 @@ const handlePublishCustomProduct = async (customProduct: any) => {
       await loadBarMenu();
       setEditingPrice(null);
       alert('✅ Price updated!');
-
     } catch (error: any) {
       console.error('Error updating price:', error);
       alert('Failed to update price: ' + error.message);
@@ -374,7 +405,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
           description: editForm.description,
           image_url: editForm.image_url,
           category: editForm.category,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', customProductId)
         .eq('bar_id', barId);
@@ -384,9 +415,8 @@ const handlePublishCustomProduct = async (customProduct: any) => {
       await loadCustomProducts();
       await loadBarMenu();
       setEditingCustom(null);
-      setEditForm({});
+      setEditForm({ name: '', category: '', description: '', image_url: '' });
       alert('✅ Custom product updated!');
-
     } catch (error: any) {
       console.error('Error updating custom product:', error);
       alert('Failed to update: ' + error.message);
@@ -408,7 +438,6 @@ const handlePublishCustomProduct = async (customProduct: any) => {
 
       await loadBarMenu();
       alert('✅ Removed from menu');
-
     } catch (error: any) {
       console.error('Error removing from menu:', error);
       alert('Failed to remove: ' + error.message);
@@ -430,7 +459,6 @@ const handlePublishCustomProduct = async (customProduct: any) => {
 
       await loadCustomProducts();
       alert('✅ Custom product deleted');
-
     } catch (error: any) {
       console.error('Error deleting:', error);
       alert('Failed to delete: ' + error.message);
@@ -474,7 +502,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
       <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
         <div className="w-full lg:max-w-[80%] max-w-full">
           <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-            <button 
+            <button
               onClick={() => {
                 setSelectedSupplier(null);
                 setSearchQuery('');
@@ -487,11 +515,8 @@ const handlePublishCustomProduct = async (customProduct: any) => {
             <h1 className="text-2xl font-bold">
               {selectedSupplier ? selectedSupplier.name : 'Browse Products'}
             </h1>
-            <p className="text-orange-100 text-sm">
-              {filteredProducts.length} products found
-            </p>
+            <p className="text-orange-100 text-sm">{filteredProducts.length} products found</p>
           </div>
-
           <div className="p-4 bg-white border-b sticky top-0 z-10">
             <div className="relative mb-3">
               <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -503,26 +528,21 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                 className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
               />
             </div>
-
             <div className="flex gap-2 overflow-x-auto pb-2">
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === 'all' 
-                    ? 'bg-orange-500 text-white' 
-                    : 'bg-gray-100 text-gray-700'
+                  selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
                 }`}
               >
                 All
               </button>
-              {categories.map(cat => (
+              {categories.map((cat) => (
                 <button
                   key={cat.name}
                   onClick={() => setSelectedCategory(cat.name)}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                    selectedCategory === cat.name 
-                      ? 'bg-orange-500 text-white' 
-                      : 'bg-gray-100 text-gray-700'
+                    selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
                   }`}
                 >
                   {cat.name}
@@ -530,7 +550,6 @@ const handlePublishCustomProduct = async (customProduct: any) => {
               ))}
             </div>
           </div>
-
           <div className="p-4 space-y-3">
             {filteredProducts.length === 0 ? (
               <div className="text-center py-12">
@@ -538,21 +557,20 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                 <p className="text-gray-500">No products found</p>
               </div>
             ) : (
-              filteredProducts.map(product => {
+              filteredProducts.map((product) => {
                 const alreadyInMenu = isProductInMenu(product.id);
                 const displayImage = getDisplayImage(product);
-                
                 return (
                   <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
                     <div className="flex gap-4">
                       {displayImage ? (
                         <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                          <img 
-                            src={displayImage} 
+                          <img
+                            src={displayImage}
                             alt={product.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
                             }}
                           />
                         </div>
@@ -561,13 +579,12 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                           <span className="text-3xl">🍺</span>
                         </div>
                       )}
-
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <h3 className="font-semibold text-gray-800">{product.name}</h3>
                             <p className="text-xs text-gray-500">
-                              {product.supplier?.name} • SKU: {product.sku}
+                              SKU: {product.sku}
                             </p>
                             <span className="inline-block mt-1 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                               {product.category}
@@ -579,17 +596,18 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                             </span>
                           )}
                         </div>
-
                         {!alreadyInMenu ? (
                           <div className="flex gap-2 mt-3">
                             <input
                               type="number"
                               placeholder="Price (KSh)"
                               value={addingPrice[product.id] || ''}
-                              onChange={(e) => setAddingPrice({
-                                ...addingPrice, 
-                                [product.id]: e.target.value
-                              })}
+                              onChange={(e) =>
+                                setAddingPrice({
+                                  ...addingPrice,
+                                  [product.id]: e.target.value,
+                                })
+                              }
                               className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                             />
                             <button
@@ -600,9 +618,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                             </button>
                           </div>
                         ) : (
-                          <div className="mt-3 text-sm text-gray-500 italic">
-                            Already in your menu
-                          </div>
+                          <div className="mt-3 text-sm text-gray-500 italic">Already in your menu</div>
                         )}
                       </div>
                     </div>
@@ -621,7 +637,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
     <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
       <div className="w-full" style={{ maxWidth: '80%' }}>
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-          <button 
+          <button
             onClick={() => router.push('/')}
             className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
           >
@@ -630,11 +646,8 @@ const handlePublishCustomProduct = async (customProduct: any) => {
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-bold">Menu Management</h1>
           </div>
-          <p className="text-orange-100 text-sm">
-            {barProducts.length} items in your menu
-          </p>
+          <p className="text-orange-100 text-sm">{barProducts.length} items in your menu</p>
         </div>
-
         <div className="p-4 space-y-6">
           {/* Browse Product Catalog */}
           <div>
@@ -648,11 +661,9 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                 Search All
               </button>
             </div>
-
             <div className="grid grid-cols-2 gap-3 mb-4">
-              {suppliers.map(supplier => {
-                const productCount = products.filter(p => p.supplier_id === supplier.id).length;
-                
+              {suppliers.map((supplier) => {
+                const productCount = products.filter((p) => p.supplier_id === supplier.id).length;
                 return (
                   <button
                     key={supplier.id}
@@ -660,8 +671,8 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                     className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition text-center"
                   >
                     {supplier.logo_url ? (
-                      <img 
-                        src={supplier.logo_url} 
+                      <img
+                        src={supplier.logo_url}
                         alt={supplier.name}
                         className="w-12 h-12 mx-auto mb-2 object-contain"
                       />
@@ -670,17 +681,14 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                         🏪
                       </div>
                     )}
-                    <h3 className="font-semibold text-gray-800 text-sm mb-1">
-                      {supplier.name}
-                    </h3>
+                    <h3 className="font-semibold text-gray-800 text-sm mb-1">{supplier.name}</h3>
                     <p className="text-xs text-gray-500">{productCount} products</p>
                   </button>
                 );
               })}
             </div>
-
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {categories.slice(0, 4).map(cat => (
+              {categories.slice(0, 4).map((cat) => (
                 <button
                   key={cat.name}
                   onClick={() => {
@@ -708,7 +716,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                 Unpublished Custom Products ({customProducts.length})
               </h2>
               <div className="space-y-2">
-                {customProducts.map(cp => (
+                {customProducts.map((cp) => (
                   <div key={cp.id} className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
                     {editingCustom === cp.id ? (
                       <div className="space-y-3">
@@ -725,24 +733,98 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                           onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         >
-                          {categories.map(cat => (
-                            <option key={cat.name} value={cat.name}>{cat.name}</option>
+                          {categories.map((cat) => (
+                            <option key={cat.name} value={cat.name}>
+                              {cat.name}
+                            </option>
                           ))}
                         </select>
                         <textarea
-                          value={editForm.description}
+                          value={editForm.description || ''}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                           placeholder="Description (optional)"
                           rows={2}
                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         />
-                        <input
-                          type="text"
-                          value={editForm.image_url}
-                          onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
-                          placeholder="Image URL (optional)"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                        />
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">Product Image (optional)</label>
+                          <input
+                            type="text"
+                            value={editForm.image_url || ''}
+                            onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
+                            placeholder="Paste image URL here"
+                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                          />
+                          <details className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <summary className="text-xs font-semibold text-gray-700 cursor-pointer">
+                              📸 How to upload an image
+                            </summary>
+                            <div className="space-y-2 text-xs text-gray-600 mt-2">
+                              <div>
+                                <p className="font-medium text-gray-700">Option 1: Google Drive</p>
+                                <ol className="list-decimal ml-4 space-y-1 mt-1">
+                                  <li>
+                                    Open{' '}
+                                    <a
+                                      href="https://drive.google.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 underline"
+                                    >
+                                      Google Drive
+                                    </a>
+                                  </li>
+                                  <li>Upload your image</li>
+                                  <li>
+                                    Right-click → Get link → Change to &quot;Anyone with the link&quot;
+                                  </li>
+                                  <li>Copy the link and paste it above</li>
+                                </ol>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-700">Option 2: ImgBB (Free, no account needed)</p>
+                                <ol className="list-decimal ml-4 space-y-1 mt-1">
+                                  <li>
+                                    Visit{' '}
+                                    <a
+                                      href="https://imgbb.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 underline"
+                                    >
+                                      imgbb.com
+                                    </a>
+                                  </li>
+                                  <li>Click &quot;Start uploading&quot; and select your image</li>
+                                  <li>Copy the &quot;Direct link&quot; and paste above</li>
+                                </ol>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-700">Option 3: OneDrive</p>
+                                <ol className="list-decimal ml-4 space-y-1 mt-1">
+                                  <li>
+                                    Open{' '}
+                                    <a
+                                      href="https://onedrive.live.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 underline"
+                                    >
+                                      OneDrive
+                                    </a>
+                                  </li>
+                                  <li>Upload your image</li>
+                                  <li>Click &quot;Share&quot; → Copy link → Paste above</li>
+                                </ol>
+                              </div>
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-gray-300">
+                              <p className="text-xs text-gray-500">
+                                💡 Tip: For best results, use square images (e.g., 500x500px)
+                              </p>
+                            </div>
+                          </details>
+                        </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleUpdateCustomProduct(cp.id)}
@@ -754,7 +836,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                           <button
                             onClick={() => {
                               setEditingCustom(null);
-                              setEditForm({});
+                              setEditForm({ name: '', category: '', description: '', image_url: '' });
                             }}
                             className="flex-1 bg-gray-200 py-2 rounded-lg font-medium hover:bg-gray-300"
                           >
@@ -774,15 +856,18 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-800">{cp.name}</p>
                           <p className="text-xs text-gray-600">{cp.category}</p>
-                          {cp.description && (
-                            <p className="text-xs text-gray-500 mt-1">{cp.description}</p>
-                          )}
+                          {cp.description && <p className="text-xs text-gray-500 mt-1">{cp.description}</p>}
                         </div>
                         <input
                           type="number"
                           placeholder="Price (KSh)"
                           value={addingPrice[cp.id] || ''}
-                          onChange={(e) => setAddingPrice({ ...addingPrice, [cp.id]: e.target.value })}
+                          onChange={(e) =>
+                            setAddingPrice({
+                              ...addingPrice,
+                              [cp.id]: e.target.value,
+                            })
+                          }
                           className="w-28 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         />
                         <button
@@ -798,7 +883,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                               name: cp.name,
                               category: cp.category,
                               description: cp.description || '',
-                              image_url: cp.image_url || ''
+                              image_url: cp.image_url || '',
                             });
                           }}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -823,7 +908,9 @@ const handlePublishCustomProduct = async (customProduct: any) => {
 
           {/* Your Menu (Published Items) */}
           <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
+            <h2 className="text-lg font-bold text-gray-800 mb-3">
+              Your Menu ({barProducts.length} items)
+            </h2>
             {barProducts.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center text-gray-500">
                 <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
@@ -832,19 +919,32 @@ const handlePublishCustomProduct = async (customProduct: any) => {
               </div>
             ) : (
               <div className="bg-white rounded-xl shadow-sm divide-y">
-                {barProducts.map(item => {
+                {barProducts.map((item) => {
                   const isCustom = !!item.custom_product_id;
-                  const productData = isCustom ? item.custom_products : item.products;
-                  const displayImage = isCustom 
-                    ? productData?.image_url 
-                    : getDisplayImage(productData, productData?.category);
-                  
+                  const productData = isCustom
+                    ? ({
+                        ...item,
+                        name: item.name,
+                        category: item.category,
+                        description: item.description,
+                        id: item.custom_product_id,
+                      } as CustomProduct)
+                    : ({
+                        ...item,
+                        supplier_id: undefined,
+                        id: item.product_id || '',
+                      } as Product);
+
+                  const displayImage = isCustom
+                    ? productData.image_url
+                    : getDisplayImage(productData as Product, productData.category);
+
                   return (
                     <div key={item.id} className="p-4">
                       {editingPrice === item.id ? (
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-800 mb-2">{productData?.name}</p>
+                            <p className="font-semibold text-gray-800 mb-2">{productData.name}</p>
                             <input
                               type="number"
                               defaultValue={item.sale_price}
@@ -863,7 +963,9 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                           </div>
                           <button
                             onClick={() => {
-                              const input = document.querySelector(`input[type="number"]`) as HTMLInputElement;
+                              const input = document.querySelector(
+                                `input[type="number"]`
+                              ) as HTMLInputElement;
                               const newPrice = parseFloat(input.value);
                               if (newPrice > 0) {
                                 handleUpdatePrice(item.id, newPrice);
@@ -884,12 +986,12 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                         <div className="flex items-center gap-4">
                           {displayImage ? (
                             <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                              <img 
-                                src={displayImage} 
-                                alt={productData?.name}
+                              <img
+                                src={displayImage}
+                                alt={productData.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
                                 }}
                               />
                             </div>
@@ -900,17 +1002,14 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="font-semibold text-gray-800">{productData?.name || 'Unknown Product'}</p>
+                              <p className="font-semibold text-gray-800">{productData.name || 'Unknown Product'}</p>
                               {isCustom && (
                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
                                   Custom
                                 </span>
                               )}
                             </div>
-                            {/* {!isCustom && productData?.suppliers?.name && (
-                              <p className="text-xs text-gray-500">{productData.suppliers.name}</p>
-                            )} */}
-                            {productData?.description && (
+                            {productData.description && (
                               <p className="text-xs text-gray-600 mt-1">{productData.description}</p>
                             )}
                             <p className="text-sm text-orange-600 font-bold mt-1">
@@ -927,13 +1026,12 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                           {isCustom && (
                             <button
                               onClick={() => {
-                                // Find in custom products or bar_products
-                                setEditingCustom(productData?.id);
+                                setEditingCustom(productData.id);
                                 setEditForm({
-                                  name: productData?.name,
-                                  category: productData?.category,
-                                  description: productData?.description || '',
-                                  image_url: productData?.image_url || ''
+                                  name: productData.name,
+                                  category: productData.category,
+                                  description: productData.description || '',
+                                  image_url: productData.image_url || '',
                                 });
                               }}
                               className="p-2 text-purple-500 hover:bg-purple-50 rounded-lg"
@@ -970,7 +1068,6 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                 {showAddCustom ? 'Cancel' : 'Add Custom'}
               </button>
             </div>
-
             {showAddCustom && (
               <div className="bg-white rounded-xl p-4 shadow-sm">
                 <h3 className="font-semibold mb-3">Create New Custom Product</h3>
@@ -978,34 +1075,106 @@ const handlePublishCustomProduct = async (customProduct: any) => {
                   <input
                     type="text"
                     value={newCustomItem.name}
-                    onChange={(e) => setNewCustomItem({...newCustomItem, name: e.target.value})}
+                    onChange={(e) => setNewCustomItem({ ...newCustomItem, name: e.target.value })}
                     placeholder="Product name *"
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                   <select
                     value={newCustomItem.category}
-                    onChange={(e) => setNewCustomItem({...newCustomItem, category: e.target.value})}
+                    onChange={(e) => setNewCustomItem({ ...newCustomItem, category: e.target.value })}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   >
                     <option value="">Select category *</option>
-                    {categories.map(cat => (
-                      <option key={cat.name} value={cat.name}>{cat.name}</option>
+                    {categories.map((cat) => (
+                      <option key={cat.name} value={cat.name}>
+                        {cat.name}
+                      </option>
                     ))}
                   </select>
                   <textarea
                     value={newCustomItem.description}
-                    onChange={(e) => setNewCustomItem({...newCustomItem, description: e.target.value})}
+                    onChange={(e) => setNewCustomItem({ ...newCustomItem, description: e.target.value })}
                     placeholder="Description (optional)"
                     rows={2}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
-                  <input
-                    type="text"
-                    value={newCustomItem.image_url}
-                    onChange={(e) => setNewCustomItem({...newCustomItem, image_url: e.target.value})}
-                    placeholder="Image URL (optional)"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Product Image (optional)</label>
+                    <input
+                      type="text"
+                      value={newCustomItem.image_url}
+                      onChange={(e) => setNewCustomItem({ ...newCustomItem, image_url: e.target.value })}
+                      placeholder="Paste image URL here"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                    />
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-gray-700 mb-2">📸 How to upload an image:</p>
+                      <div className="space-y-2 text-xs text-gray-600">
+                        <div>
+                          <p className="font-medium text-gray-700">Option 1: Google Drive</p>
+                          <ol className="list-decimal ml-4 space-y-1 mt-1">
+                            <li>
+                              Open{' '}
+                              <a
+                                href="https://drive.google.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                              >
+                                Google Drive
+                              </a>
+                            </li>
+                            <li>Upload your image</li>
+                            <li>
+                              Right-click → Get link → Change to &quot;Anyone with the link&quot;
+                            </li>
+                            <li>Copy the link and paste it above</li>
+                          </ol>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700">Option 2: ImgBB (Free, no account needed)</p>
+                          <ol className="list-decimal ml-4 space-y-1 mt-1">
+                            <li>
+                              Visit{' '}
+                              <a
+                                href="https://imgbb.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                              >
+                                imgbb.com
+                              </a>
+                            </li>
+                            <li>Click &quot;Start uploading&quot; and select your image</li>
+                            <li>Copy the &quot;Direct link&quot; and paste above</li>
+                          </ol>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700">Option 3: OneDrive</p>
+                          <ol className="list-decimal ml-4 space-y-1 mt-1">
+                            <li>
+                              Open{' '}
+                              <a
+                                href="https://onedrive.live.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                              >
+                                OneDrive
+                              </a>
+                            </li>
+                            <li>Upload your image</li>
+                            <li>Click &quot;Share&quot; → Copy link → Paste above</li>
+                          </ol>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-gray-300">
+                        <p className="text-xs text-gray-500">
+                          💡 Tip: For best results, use square images (e.g., 500x500px)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm text-blue-800">
                       💡 This will create an unpublished product. Add a price to publish it to your menu.
