@@ -1,13 +1,20 @@
 // components/InteractiveImageCropper.tsx
 'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Move, Maximize2, Minimize2, RotateCw, Upload, Check, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, Move, Maximize2, Minimize2, RotateCw, Upload, Check, X, Save, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface InteractiveImageCropperProps {
   isOpen: boolean;
   onClose: () => void;
   onImageReady: (file: File, imageUrl: string) => void;
   aspectRatio?: number; // width/height = 4/5 = 0.8
+}
+
+interface SavedConfirmation {
+  id: number;
+  message: string;
+  type: 'success' | 'error' | 'info';
+  timestamp: Date;
 }
 
 export default function InteractiveImageCropper({
@@ -21,22 +28,130 @@ export default function InteractiveImageCropper({
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
+  // Crop box position and resize state
+  const [cropBoxPosition, setCropBoxPosition] = useState({ x: 0, y: 0 });
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
+  const [isResizingCrop, setIsResizingCrop] = useState(false);
+  const [resizeHandle, setResizeHandle] = useState('');
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizeStartState, setResizeStartState] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [rotation, setRotation] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [savedConfirmations, setSavedConfirmations] = useState<SavedConfirmation[]>([]);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [cropHistory, setCropHistory] = useState<Array<{scale: number; position: {x: number; y: number}; rotation: number}>>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  
+  // Crop box resize state
+  const [cropSize, setCropSize] = useState({ width: 320, height: 400 });
   
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirmationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const MIN_ZOOM = 0.5;
   const MAX_ZOOM = 3;
   const ZOOM_STEP = 0.1;
-  const CROP_WIDTH = 320; // 4:5 crop area width (4/5 * height)
-  const CROP_HEIGHT = 400; // 4:5 crop area height
+  
+  // Calculate crop box size based on viewport (fixed at 1/3 of height, maintaining 4:5 ratio)
+  const getCropDimensions = () => {
+    if (!containerRef.current) {
+      return { width: cropSize.width, height: cropSize.height };
+    }
+    return { width: cropSize.width, height: cropSize.height };
+  };
+  
+  const CROP_WIDTH = getCropDimensions().width;
+  const CROP_HEIGHT = getCropDimensions().height;
+
+  // Initialize crop size on mount and when image loads
+  useEffect(() => {
+    if (containerRef.current) {
+      // Small delay to ensure container is ready
+      setTimeout(() => {
+        const viewportHeight = containerRef.current?.clientHeight || 400;
+        const viewportWidth = containerRef.current?.clientWidth || 600;
+        const cropHeight = viewportHeight / 3;
+        const cropWidth = cropHeight * 0.8;
+        
+        // Center the crop box in the viewport
+        const centeredX = (viewportWidth - cropWidth) / 2;
+        const centeredY = (viewportHeight - cropHeight) / 2;
+        
+        setCropSize({ width: cropWidth, height: cropHeight });
+        setCropBoxPosition({ x: centeredX, y: centeredY });
+      }, 100);
+    }
+  }, []);
+
+  // Re-center crop box when image loads
+  useEffect(() => {
+    if (originalImage && containerRef.current) {
+      const viewportHeight = containerRef.current.clientHeight;
+      const viewportWidth = containerRef.current.clientWidth;
+      const cropHeight = viewportHeight / 3;
+      const cropWidth = cropHeight * 0.8;
+      
+      // Center the crop box in the viewport
+      const centeredX = (viewportWidth - cropWidth) / 2;
+      const centeredY = (viewportHeight - cropHeight) / 2;
+      
+      setCropSize({ width: cropWidth, height: cropHeight });
+      setCropBoxPosition({ x: centeredX, y: centeredY });
+    }
+  }, [originalImage]);
+
+  // Auto-fit image when loaded
+  useEffect(() => {
+    if (originalImage && imageDimensions.width && containerRef.current) {
+      // Small delay to ensure container is ready
+      setTimeout(() => {
+        zoomToFit();
+      }, 100);
+    }
+  }, [originalImage, imageDimensions]);
+
+  // Add confirmation notification
+  const addConfirmation = (message: string, type: 'success' | 'error' | 'info') => {
+    const id = Date.now();
+    const newConfirmation = {
+      id,
+      message,
+      type,
+      timestamp: new Date()
+    };
+    
+    setSavedConfirmations(prev => [newConfirmation, ...prev.slice(0, 4)]); // Keep only last 5
+    
+    // Auto-remove after 5 seconds
+    if (confirmationTimeoutRef.current) {
+      clearTimeout(confirmationTimeoutRef.current);
+    }
+    
+    confirmationTimeoutRef.current = setTimeout(() => {
+      setSavedConfirmations(prev => prev.filter(c => c.id !== id));
+    }, 5000);
+  };
+
+  // Save current crop state to history
+  const saveToHistory = useCallback(() => {
+    const currentState = {
+      scale,
+      position: { ...position },
+      rotation
+    };
+    
+    setCropHistory(prev => {
+      const newHistory = [...prev.slice(0, historyIndex + 1), currentState];
+      setHistoryIndex(newHistory.length - 1);
+      return newHistory;
+    });
+    
+    addConfirmation('Crop position saved to history', 'info');
+  }, [scale, position, rotation, historyIndex]);
 
   // Initialize canvas for preview
   useEffect(() => {
@@ -68,6 +183,10 @@ export default function InteractiveImageCropper({
         setPosition({ x: initialX, y: initialY });
       }
       
+      // Initialize history with first state
+      setCropHistory([{ scale, position, rotation }]);
+      setHistoryIndex(0);
+      
       generatePreview(img);
     };
     img.src = originalImage;
@@ -91,13 +210,13 @@ export default function InteractiveImageCropper({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Calculate crop coordinates in the scaled image
+    // Calculate crop coordinates based on actual crop box position
     const container = containerRef.current;
     if (!container) return;
     
-    const containerRect = container.getBoundingClientRect();
-    const cropAreaLeft = (containerRect.width - CROP_WIDTH) / 2;
-    const cropAreaTop = (containerRect.height - CROP_HEIGHT) / 2;
+    // Use the actual crop box position
+    const cropAreaLeft = cropBoxPosition.x;
+    const cropAreaTop = cropBoxPosition.y;
     
     // Calculate source coordinates (accounting for scale and position)
     const sourceX = (cropAreaLeft - position.x) / scale;
@@ -114,7 +233,7 @@ export default function InteractiveImageCropper({
     
     // Update preview URL
     setPreviewUrl(canvas.toDataURL('image/jpeg', 0.9));
-  }, [position, scale, CROP_WIDTH, CROP_HEIGHT]);
+  }, [position, scale, CROP_WIDTH, CROP_HEIGHT, cropBoxPosition]);
 
   // Handle file selection
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,52 +251,173 @@ export default function InteractiveImageCropper({
     const reader = new FileReader();
     reader.onload = (event) => {
       setOriginalImage(event.target?.result as string);
+      addConfirmation('Image loaded successfully', 'success');
     };
     reader.readAsDataURL(file);
   };
 
-  // Panning (dragging)
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
+  // Crop box drag handlers
+  const handleCropBoxMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Mouse down on crop box'); // Debug
+    setIsDraggingCrop(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !containerRef.current) return;
+  const handleCropBoxMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingCrop || !containerRef.current) return;
+    
+    console.log('Dragging crop box', { isDraggingCrop, clientX: e.clientX, clientY: e.clientY }); // Debug
     
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
     
-    setPosition(prev => ({
-      x: prev.x + deltaX,
-      y: prev.y + deltaY
-    }));
+    const container = containerRef.current;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const cropWidth = getCropDimensions().width;
+    const cropHeight = getCropDimensions().height;
     
+    // Calculate new position with bounds
+    let newX = cropBoxPosition.x + deltaX;
+    let newY = cropBoxPosition.y + deltaY;
+    
+    // Keep crop box within container bounds
+    newX = Math.max(0, Math.min(newX, containerWidth - cropWidth));
+    newY = Math.max(0, Math.min(newY, containerHeight - cropHeight));
+    
+    console.log('New position', { newX, newY }); // Debug
+    
+    setCropBoxPosition({ x: newX, y: newY });
     setDragStart({ x: e.clientX, y: e.clientY });
+    
+    // Generate preview in real-time while dragging
+    generatePreview();
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    if (imageRef.current) {
-      generatePreview();
+  // Crop box resize handlers
+  const handleResizeStart = (e: React.MouseEvent, handle: string) => {
+    e.stopPropagation();
+    setIsResizingCrop(true);
+    setResizeHandle(handle);
+    setResizeStartState({ 
+      x: e.clientX, 
+      y: e.clientY, 
+      width: cropSize.width, 
+      height: cropSize.height 
+    });
+  };
+
+  const handleResizeMove = (e: React.MouseEvent) => {
+    if (!isResizingCrop || !containerRef.current) return;
+    
+    const deltaX = e.clientX - resizeStartState.x;
+    const deltaY = e.clientY - resizeStartState.y;
+    const container = containerRef.current;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    let newWidth = resizeStartState.width;
+    let newHeight = resizeStartState.height;
+    
+    // Handle different resize directions while maintaining 4:5 ratio
+    if (resizeHandle.includes('e')) {
+      newWidth = Math.max(80, Math.min(resizeStartState.width + deltaX, containerWidth - cropBoxPosition.x - 20));
+      newHeight = newWidth / 0.8;
+    }
+    if (resizeHandle.includes('w')) {
+      newWidth = Math.max(80, Math.min(resizeStartState.width - deltaX, containerWidth - cropBoxPosition.x - 20));
+      newHeight = newWidth / 0.8;
+    }
+    if (resizeHandle.includes('s')) {
+      newHeight = Math.max(100, Math.min(resizeStartState.height + deltaY, containerHeight - cropBoxPosition.y - 20));
+      newWidth = newHeight * 0.8;
+    }
+    if (resizeHandle.includes('n')) {
+      newHeight = Math.max(100, Math.min(resizeStartState.height - deltaY, containerHeight - cropBoxPosition.y - 20));
+      newWidth = newHeight * 0.8;
+    }
+    
+    setCropSize({ width: newWidth, height: newHeight });
+    
+    // Generate preview in real-time while resizing
+    generatePreview();
+  };
+
+  // Global mouse move handler
+  const handleGlobalMouseMove = (e: MouseEvent) => {
+    if (isDraggingCrop) {
+      handleCropBoxMouseMove(e as any);
+    } else if (isResizingCrop) {
+      handleResizeMove(e as any);
     }
   };
+
+  // Local mouse event handlers for container
+  const handleContainerMouseMove = (e: React.MouseEvent) => {
+    console.log('Container mouse move', { isDraggingCrop, isResizingCrop }); // Debug
+    if (isDraggingCrop) {
+      handleCropBoxMouseMove(e);
+    } else if (isResizingCrop) {
+      handleResizeMove(e);
+    }
+  };
+
+  const handleContainerMouseUp = (e: React.MouseEvent) => {
+    console.log('Container mouse up', { isDraggingCrop, isResizingCrop }); // Debug
+    setIsDraggingCrop(false);
+    setIsResizingCrop(false);
+    if (imageRef.current) {
+      saveToHistory();
+    }
+  };
+
+  // Add global event listeners
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingCrop) {
+        handleCropBoxMouseMove(e as any);
+      } else if (isResizingCrop) {
+        handleResizeMove(e as any);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingCrop(false);
+      setIsResizingCrop(false);
+      if (imageRef.current) {
+        saveToHistory();
+      }
+    };
+
+    if (isDraggingCrop || isResizingCrop) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDraggingCrop, isResizingCrop, cropBoxPosition, cropSize]);
 
   // Zoom functions
   const zoomIn = () => {
     setScale(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+    saveToHistory();
   };
 
   const zoomOut = () => {
     setScale(prev => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+    saveToHistory();
   };
 
   const zoomToFit = () => {
     if (!containerRef.current || !imageDimensions.width) return;
     
     const container = containerRef.current;
-    const containerWidth = container.clientWidth - 40;
-    const containerHeight = container.clientHeight - 40;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
     
     const scaleX = containerWidth / imageDimensions.width;
     const scaleY = containerHeight / imageDimensions.height;
@@ -185,21 +425,28 @@ export default function InteractiveImageCropper({
     
     setScale(newScale);
     
-    // Re-center
+    // Center the image in the container
     const scaledWidth = imageDimensions.width * newScale;
     const scaledHeight = imageDimensions.height * newScale;
+    
+    // Calculate position to center the image
     const newX = (containerWidth - scaledWidth) / 2;
     const newY = (containerHeight - scaledHeight) / 2;
     
-    setPosition({ x: newX, y: newY });
+    // Ensure the image doesn't go too far negative
+    setPosition({ 
+      x: Math.max(newX, -scaledWidth + containerWidth / 2), 
+      y: Math.max(newY, -scaledHeight + containerHeight / 2) 
+    });
+    saveToHistory();
   };
 
   const zoomToFill = () => {
     if (!containerRef.current || !imageDimensions.width) return;
     
     const container = containerRef.current;
-    const containerWidth = container.clientWidth - 40;
-    const containerHeight = container.clientHeight - 40;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
     
     // Scale to fill while maintaining aspect ratio
     const scaleX = containerWidth / imageDimensions.width;
@@ -215,11 +462,63 @@ export default function InteractiveImageCropper({
     const newY = (containerHeight - scaledHeight) / 2;
     
     setPosition({ x: newX, y: newY });
+    saveToHistory();
   };
 
   // Rotate
   const rotateImage = () => {
     setRotation(prev => (prev + 90) % 360);
+    saveToHistory();
+  };
+
+  // Undo/Redo
+  const undo = () => {
+    if (historyIndex > 0) {
+      const prevState = cropHistory[historyIndex - 1];
+      setScale(prevState.scale);
+      setPosition(prevState.position);
+      setRotation(prevState.rotation);
+      setHistoryIndex(prev => prev - 1);
+      addConfirmation('Undo last action', 'info');
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < cropHistory.length - 1) {
+      const nextState = cropHistory[historyIndex + 1];
+      setScale(nextState.scale);
+      setPosition(nextState.position);
+      setRotation(nextState.rotation);
+      setHistoryIndex(prev => prev + 1);
+      addConfirmation('Redo action', 'info');
+    }
+  };
+
+  // Save current crop
+  const saveCrop = async () => {
+    if (!originalFile || !previewUrl) {
+      addConfirmation('Please upload an image first', 'error');
+      return;
+    }
+
+    setSaveStatus('saving');
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setSaveStatus('saved');
+      addConfirmation('Crop saved successfully!', 'success');
+      
+      // Auto-reset status after 3 seconds
+      setTimeout(() => {
+        setSaveStatus('idle');
+      }, 3000);
+      
+    } catch (error) {
+      setSaveStatus('error');
+      addConfirmation('Failed to save crop', 'error');
+    }
   };
 
   // Keyboard shortcuts
@@ -249,25 +548,47 @@ export default function InteractiveImageCropper({
         case 'ArrowUp':
           e.preventDefault();
           setPosition(prev => ({ ...prev, y: prev.y + 10 }));
+          saveToHistory();
           break;
         case 'ArrowDown':
           e.preventDefault();
           setPosition(prev => ({ ...prev, y: prev.y - 10 }));
+          saveToHistory();
           break;
         case 'ArrowLeft':
           e.preventDefault();
           setPosition(prev => ({ ...prev, x: prev.x + 10 }));
+          saveToHistory();
           break;
         case 'ArrowRight':
           e.preventDefault();
           setPosition(prev => ({ ...prev, x: prev.x - 10 }));
+          saveToHistory();
+          break;
+        case 'z':
+        case 'Z':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              redo();
+            } else {
+              undo();
+            }
+          }
+          break;
+        case 's':
+        case 'S':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            saveCrop();
+          }
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, zoomIn, zoomOut, rotateImage, zoomToFit, undo, redo, saveCrop]);
 
   // Handle final crop and upload
   const handleCropAndUpload = async () => {
@@ -290,10 +611,11 @@ export default function InteractiveImageCropper({
       const imageUrl = await uploadToServer(croppedFile);
       
       onImageReady(croppedFile, imageUrl);
+      addConfirmation('Image uploaded successfully!', 'success');
       resetCropper();
     } catch (error) {
       console.error('Error processing image:', error);
-      alert('Failed to process image');
+      addConfirmation('Failed to process image', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -310,7 +632,9 @@ export default function InteractiveImageCropper({
     });
     
     if (!response.ok) {
-      throw new Error('Upload failed');
+      const errorText = await response.text();
+      console.error('Upload failed:', response.status, errorText);
+      throw new Error(`Upload failed: ${response.status}`);
     }
     
     const data = await response.json();
@@ -325,6 +649,9 @@ export default function InteractiveImageCropper({
     setPosition({ x: 0, y: 0 });
     setRotation(0);
     setPreviewUrl('');
+    setCropHistory([]);
+    setHistoryIndex(-1);
+    setSavedConfirmations([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -334,7 +661,7 @@ export default function InteractiveImageCropper({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl w-full max-w-6xl h-[85vh] max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-6 border-b flex items-center justify-between">
           <div>
@@ -354,230 +681,320 @@ export default function InteractiveImageCropper({
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden grid grid-cols-3 gap-6 p-6">
-          {/* Left Panel - Controls */}
-          <div className="space-y-6">
-            {/* Zoom Controls */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="font-medium text-gray-700 mb-3">Zoom & Pan</h3>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={zoomOut}
-                    className="flex items-center justify-center gap-2 p-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    <ZoomOut size={20} />
-                    <span>Zoom Out</span>
-                  </button>
-                  <button
-                    onClick={zoomIn}
-                    className="flex items-center justify-center gap-2 p-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    <ZoomIn size={20} />
-                    <span>Zoom In</span>
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={zoomToFit}
-                    className="flex items-center justify-center gap-2 p-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    <Minimize2 size={20} />
-                    <span>Fit to Area</span>
-                  </button>
-                  <button
-                    onClick={zoomToFill}
-                    className="flex items-center justify-center gap-2 p-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    <Maximize2 size={20} />
-                    <span>Fill Area</span>
-                  </button>
-                </div>
-                
-                <div className="pt-3 border-t">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Zoom Level</span>
-                    <span className="text-sm font-medium">{Math.round(scale * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={MIN_ZOOM * 100}
-                    max={MAX_ZOOM * 100}
-                    value={scale * 100}
-                    onChange={(e) => setScale(parseInt(e.target.value) / 100)}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Transform Controls */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="font-medium text-gray-700 mb-3">Transform</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={rotateImage}
-                  className="w-full flex items-center justify-center gap-2 p-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  <RotateCw size={20} />
-                  <span>Rotate 90° (R)</span>
-                </button>
-                
-                <div className="pt-3 border-t">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Pan Controls</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-center p-2 bg-white border border-gray-300 rounded">
-                      <div className="font-medium">← → ↑ ↓</div>
-                      <div className="text-gray-500 text-xs">Arrow keys to pan</div>
-                    </div>
-                    <div className="text-center p-2 bg-white border border-gray-300 rounded">
-                      <div className="font-medium">Drag</div>
-                      <div className="text-gray-500 text-xs">Click & drag image</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Image Info */}
-            {originalFile && (
+        <div className="flex-1 overflow-hidden p-6 flex flex-col">
+          <div className="grid grid-cols-3 gap-6 flex-1 overflow-hidden">
+            {/* Left Panel - Controls */}
+            <div className="space-y-4 overflow-y-auto pr-2">
+              {/* Zoom Controls */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-medium text-gray-700 mb-2">Image Info</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Original Size:</span>
-                    <span className="font-medium">
-                      {imageDimensions.width} × {imageDimensions.height}px
-                    </span>
+                <h3 className="font-medium text-gray-700 mb-3">Zoom & Pan</h3>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={zoomOut}
+                      className="flex items-center justify-center gap-1 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      <ZoomOut size={16} />
+                      <span>Zoom Out</span>
+                    </button>
+                    <button
+                      onClick={zoomIn}
+                      className="flex items-center justify-center gap-1 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      <ZoomIn size={16} />
+                      <span>Zoom In</span>
+                    </button>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Crop Size:</span>
-                    <span className="font-medium">
-                      {CROP_WIDTH} × {CROP_HEIGHT}px (4:5)
-                    </span>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={zoomToFit}
+                      className="flex items-center justify-center gap-1 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      <Minimize2 size={16} />
+                      <span>Fit</span>
+                    </button>
+                    <button
+                      onClick={zoomToFill}
+                      className="flex items-center justify-center gap-1 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      <Maximize2 size={16} />
+                      <span>Fill</span>
+                    </button>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">File Size:</span>
-                    <span className="font-medium">
-                      {(originalFile.size / 1024 / 1024).toFixed(2)} MB
-                    </span>
+                  
+                  <div className="pt-3 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Zoom</span>
+                      <span className="text-sm font-medium">{Math.round(scale * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={MIN_ZOOM * 100}
+                      max={MAX_ZOOM * 100}
+                      value={scale * 100}
+                      onChange={(e) => {
+                        setScale(parseInt(e.target.value) / 100);
+                        saveToHistory();
+                      }}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
                   </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Center Panel - Cropping Area */}
-          <div className="col-span-2 flex flex-col">
-            <div className="flex-1 relative bg-gray-900 rounded-xl overflow-hidden">
-              {!originalImage ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileSelect}
-                      accept="image/*"
-                      className="hidden"
-                      id="crop-image-input"
-                    />
-                    <label
-                      htmlFor="crop-image-input"
-                      className="inline-flex flex-col items-center cursor-pointer p-8 border-2 border-dashed border-gray-600 rounded-lg hover:border-orange-500"
+              {/* Transform Controls */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-medium text-gray-700 mb-3">Transform</h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={rotateImage}
+                    className="w-full flex items-center justify-center gap-2 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                  >
+                    <RotateCw size={16} />
+                    <span>Rotate 90°</span>
+                  </button>
+                  
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                    <button
+                      onClick={undo}
+                      disabled={historyIndex <= 0}
+                      className="flex items-center justify-center gap-1 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <div className="w-20 h-20 mb-4 bg-gray-800 rounded-full flex items-center justify-center">
-                        <Upload className="text-gray-400" size={32} />
-                      </div>
-                      <p className="text-white font-medium">Click to select an image</p>
-                      <p className="text-gray-400 text-sm mt-2">or drag and drop</p>
-                      <p className="text-gray-500 text-xs mt-4">JPG, PNG, WebP • Max 10MB</p>
-                    </label>
+                      <RefreshCw size={16} className="rotate-90" />
+                      <span>Undo</span>
+                    </button>
+                    <button
+                      onClick={redo}
+                      disabled={historyIndex >= cropHistory.length - 1}
+                      className="flex items-center justify-center gap-1 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw size={16} className="-rotate-90" />
+                      <span>Redo</span>
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <div
-                  ref={containerRef}
-                  className="relative w-full h-full overflow-hidden"
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
-                >
-                  {/* Image being cropped */}
-                  {originalImage && (
-                    <img
-                      ref={imageRef}
-                      src={originalImage}
-                      alt="Crop preview"
-                      className="absolute select-none z-10"
-                      style={{
-                        transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
-                        transformOrigin: '0 0',
-                        cursor: isDragging ? 'grabbing' : 'grab'
-                      }}
-                      onLoad={() => generatePreview()}
-                    />
-                  )}
+              </div>
 
-                  {/* 4:5 Crop Overlay */}
-                  <div className="absolute inset-0 pointer-events-none z-20">
-                    {/* Semi-transparent overlay outside crop area */}
-                    <div className="absolute inset-0 bg-black/50" />
-                    
-                    {/* Crop area window - transparent area */}
-                    <div 
-                      className="absolute border-4 border-white shadow-2xl"
-                      style={{
-                        width: `${CROP_WIDTH}px`,
-                        height: `${CROP_HEIGHT}px`,
-                        left: '50%',
-                        top: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)'
-                      }}
-                    />
-                    
-                    {/* Aspect ratio indicator */}
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-medium z-30">
-                      4:5 Ratio
+              {/* Image Info */}
+              {originalFile && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="font-medium text-gray-700 mb-2">Image Info</h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Size:</span>
+                      <span className="font-medium">
+                        {imageDimensions.width} × {imageDimensions.height}px
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Crop:</span>
+                      <span className="font-medium">
+                        {CROP_WIDTH} × {CROP_HEIGHT}px
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">File:</span>
+                      <span className="font-medium">
+                        {(originalFile.size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">History:</span>
+                      <span className="font-medium">
+                        {historyIndex + 1}/{cropHistory.length}
+                      </span>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Preview Panel - Always show when image is loaded */}
-            {originalImage && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium text-gray-700">Preview (4:5 Cropped)</h3>
-                  <div className="text-xs text-gray-500">
-                    {CROP_WIDTH}×{CROP_HEIGHT}px • {(scale * 100).toFixed(0)}% zoom
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden flex-shrink-0">
-                    {previewUrl ? (
-                      <img
-                        src={previewUrl}
-                        alt="Cropped preview"
-                        className="w-full h-full object-cover"
+            {/* Center Panel - Cropping Area */}
+            <div className="flex flex-col overflow-hidden">
+              <div className="flex-1 relative bg-gray-100 rounded-xl overflow-hidden border border-gray-300">
+                {!originalImage ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        accept="image/*"
+                        className="hidden"
+                        id="crop-image-input"
                       />
-                    ) : (
-                      <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                        <p className="text-gray-500 text-xs">Adjust image to see preview</p>
-                      </div>
-                    )}
+                      <label
+                        htmlFor="crop-image-input"
+                        className="inline-flex flex-col items-center cursor-pointer p-8 border-2 border-dashed border-gray-600 rounded-lg hover:border-blue-500 transition-colors"
+                      >
+                        <div className="w-20 h-20 mb-4 bg-gray-700 rounded-full flex items-center justify-center border border-gray-600">
+                          <Upload className="text-gray-400" size={32} />
+                        </div>
+                        <p className="text-gray-300 font-medium">Click to select an image</p>
+                        <p className="text-gray-400 text-sm mt-2">or drag and drop</p>
+                        <p className="text-gray-500 text-xs mt-4">JPG, PNG, WebP • Max 10MB</p>
+                      </label>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-600 mb-3">
-                      This is how your image will appear in the menu. You can continue to adjust using the controls.
-                    </p>
+                ) : (
+                  <div
+                    ref={containerRef}
+                    className="relative w-full h-full overflow-hidden"
+                    style={{ minHeight: '400px' }}
+                    onMouseMove={handleContainerMouseMove}
+                    onMouseUp={handleContainerMouseUp}
+                    onMouseLeave={handleContainerMouseUp}
+                  >
+                    {/* Image being cropped */}
+                    {originalImage && (
+                      <img
+                        ref={imageRef}
+                        src={originalImage}
+                        alt="Crop preview"
+                        className="absolute select-none z-10"
+                        style={{
+                          transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
+                          transformOrigin: '0 0',
+                          maxWidth: 'none',
+                          maxHeight: 'none'
+                        }}
+                        onLoad={() => generatePreview()}
+                      />
+                    )}
+
+                    {/* Simple Crop Overlay */}
+                    <div className="absolute inset-0 z-20">
+                      {/* Movable crop box */}
+                      <div 
+                        className="absolute border-2 border-blue-500 bg-white/10 shadow-lg cursor-move overflow-hidden"
+                        onMouseDown={handleCropBoxMouseDown}
+                        style={{
+                          width: `${getCropDimensions().width}px`,
+                          height: `${getCropDimensions().height}px`,
+                          left: `${cropBoxPosition.x}px`,
+                          top: `${cropBoxPosition.y}px`,
+                          transform: 'none'
+                        }}
+                      >
+                        {/* Show the actual cropped area */}
+                        {originalImage && (
+                          <div 
+                            className="absolute inset-0 overflow-hidden"
+                            style={{
+                              backgroundImage: `url(${originalImage})`,
+                              backgroundSize: `${imageDimensions.width * scale}px ${imageDimensions.height * scale}px`,
+                              backgroundPosition: `-${cropBoxPosition.x - position.x}px -${cropBoxPosition.y - position.y}px`,
+                              backgroundRepeat: 'no-repeat'
+                            }}
+                          />
+                        )}
+                        {/* Grid lines for visual guidance */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          <div className="absolute inset-0 border border-white/20" />
+                          <div className="absolute top-1/2 left-0 right-0 border-t border-white/20" />
+                          <div className="absolute left-1/2 top-0 bottom-0 border-l border-white/20" />
+                        </div>
+                        
+                        {/* Corner handles for resizing */}
+                        <div 
+                          className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'nw');
+                          }}
+                        />
+                        <div 
+                          className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'ne');
+                          }}
+                        />
+                        <div 
+                          className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'sw');
+                          }}
+                        />
+                        <div 
+                          className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'se');
+                          }}
+                        />
+                        
+                        {/* Edge handles for resizing */}
+                        <div 
+                          className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full cursor-n-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'n');
+                          }}
+                        />
+                        <div 
+                          className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full cursor-s-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 's');
+                          }}
+                        />
+                        <div 
+                          className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full cursor-w-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'w');
+                          }}
+                        />
+                        <div 
+                          className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full cursor-e-resize pointer-events-auto z-10"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleResizeStart(e, 'e');
+                          }}
+                        />
+                        
+                        {/* Crop info */}
+                        <div className="absolute top-4 left-4 bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
+                          {Math.round(getCropDimensions().width)} × {Math.round(getCropDimensions().height)}px
+                        </div>
+                        
+                        {/* Instructions */}
+                        <div className="absolute bottom-4 left-4 bg-black/80 text-white px-2 py-1 rounded text-xs">
+                          Drag to move • Handles to resize
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Panel - Minimal Preview */}
+            <div className="space-y-4 overflow-y-auto">
+              {originalImage ? (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="font-medium text-gray-700 mb-3">Preview</h3>
+                  <div className="flex flex-col items-center">
+                    <div className="w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden mb-4">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt="Cropped preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                          <p className="text-gray-500 text-xs text-center">Adjust image to see preview</p>
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={handleCropAndUpload}
                       disabled={isProcessing || !previewUrl}
-                      className="bg-orange-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="w-full bg-orange-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {isProcessing ? (
                         <>
@@ -586,42 +1003,49 @@ export default function InteractiveImageCropper({
                         </>
                       ) : (
                         <>
-                          <Check size={20} />
+                          <Upload size={16} />
                           Use This Crop
                         </>
                       )}
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <div className="w-32 h-40 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                    <p className="text-gray-500 text-xs">Preview will appear here</p>
+                  </div>
+                  <p className="text-sm text-gray-600">Upload an image to see the cropped preview</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Keyboard Shortcuts Help */}
-        <div className="px-6 py-3 bg-gray-900 text-gray-300 text-sm border-t border-gray-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs">+</kbd>
-                <span>Zoom In</span>
+        <div className="px-6 py-3 bg-gray-900 text-gray-300 text-xs border-t border-gray-800 flex-shrink-0">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Ctrl+S</kbd>
+                <span>Save Crop</span>
               </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs">-</kbd>
-                <span>Zoom Out</span>
+              <div className="flex items-center gap-1">
+                <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Ctrl+Z</kbd>
+                <span>Undo</span>
               </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs">R</kbd>
+              <div className="flex items-center gap-1">
+                <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Ctrl+Shift+Z</kbd>
+                <span>Redo</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">R</kbd>
                 <span>Rotate</span>
               </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs">0</kbd>
-                <span>Fit to Area</span>
-              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Move size={16} />
-              <span>Click & drag to pan image</span>
+            <div className="flex items-center gap-1">
+              <Move size={12} />
+              <span>Drag to pan • Scroll to zoom</span>
             </div>
           </div>
         </div>
