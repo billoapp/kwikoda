@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';  // ← Make sure this line exists
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Tabz',
 };
