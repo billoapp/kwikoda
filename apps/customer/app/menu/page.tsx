@@ -64,7 +64,6 @@ export default function MenuPage() {
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
-  const realTimeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const loadAttempted = useRef(false); // Prevent multiple load attempts
 
   // Helper function to get display image with category fallback
@@ -92,17 +91,129 @@ export default function MenuPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Real-time timer effect
+  // Set up real-time subscriptions
   useEffect(() => {
-    realTimeTimerRef.current = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
+    if (!tab?.id) return;
+
+    console.log('🔄 Setting up real-time subscriptions for tab:', tab.id);
+
+    // Subscribe to orders changes
+    const ordersSubscription = supabase
+      .channel(`tab-orders-${tab.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tab_orders',
+          filter: `tab_id=eq.${tab.id}`
+        },
+        async (payload) => {
+          console.log('📦 Real-time order update:', payload);
+          // Refresh orders data
+          const { data: ordersData, error } = await supabase
+            .from('tab_orders')
+            .select('*')
+            .eq('tab_id', tab.id)
+            .order('created_at', { ascending: false });
+          
+          if (!error && ordersData) {
+            setOrders(ordersData);
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to payments changes
+    const paymentsSubscription = supabase
+      .channel(`tab-payments-${tab.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tab_payments',
+          filter: `tab_id=eq.${tab.id}`
+        },
+        async (payload) => {
+          console.log('💳 Real-time payment update:', payload);
+          // Refresh payments data
+          const { data: paymentsData, error } = await supabase
+            .from('tab_payments')
+            .select('*')
+            .eq('tab_id', tab.id)
+            .order('created_at', { ascending: false });
+          
+          if (!error && paymentsData) {
+            setPayments(paymentsData);
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to tab changes (for status updates, closure, etc.)
+    const tabSubscription = supabase
+      .channel(`tab-${tab.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tabs',
+          filter: `id=eq.${tab.id}`
+        },
+        async (payload) => {
+          console.log('📋 Real-time tab update:', payload);
+          if (payload.eventType === 'UPDATE') {
+            const updatedTab = payload.new as Tab;
+            
+            // If tab was closed, redirect to home
+            if (updatedTab.status === 'closed') {
+              console.log('🛑 Tab was closed, redirecting to home');
+              sessionStorage.removeItem('currentTab');
+              sessionStorage.removeItem('cart');
+              router.replace('/');
+              return;
+            }
+            
+            // Update tab data
+            const { data: fullTab, error } = await supabase
+              .from('tabs')
+              .select('*, bar:bars(id, name, location)')
+              .eq('id', tab.id)
+              .maybeSingle();
+            
+            if (!error && fullTab) {
+              setTab(fullTab as Tab);
+              setBarName((fullTab as any).bar?.name || 'Bar');
+              
+              // Update display name
+              let name = 'Your Tab';
+              if ((fullTab as any).notes) {
+                try {
+                  const notes = JSON.parse((fullTab as any).notes);
+                  name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
+                } catch (e) {
+                  name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
+                }
+              } else if ((fullTab as any).tab_number) {
+                name = `Tab ${(fullTab as any).tab_number}`;
+              }
+              setDisplayName(name);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Clean up subscriptions on unmount
     return () => {
-      if (realTimeTimerRef.current) {
-        clearInterval(realTimeTimerRef.current);
-      }
+      console.log('🧹 Cleaning up real-time subscriptions');
+      ordersSubscription.unsubscribe();
+      paymentsSubscription.unsubscribe();
+      tabSubscription.unsubscribe();
     };
-  }, []);
+  }, [tab?.id, router]);
 
   const toggleMenu = () => {
     setMenuExpanded(!menuExpanded);
@@ -314,8 +425,7 @@ export default function MenuPage() {
         return;
       }
 
-      // Refresh data
-      await loadTabData();
+      // Real-time subscription will handle the refresh automatically
     } catch (error) {
       console.error('Error in handleApproveOrder:', error);
       alert('An error occurred while approving the order');
@@ -341,8 +451,7 @@ export default function MenuPage() {
         return;
       }
 
-      // Refresh data
-      await loadTabData();
+      // Real-time subscription will handle the refresh automatically
     } catch (error) {
       console.error('Error in handleRejectOrder:', error);
       alert('An error occurred while rejecting the order');
@@ -425,7 +534,7 @@ export default function MenuPage() {
       sessionStorage.removeItem('cart');
       setCart([]);
       setShowCart(false);
-      await loadTabData();
+      // Real-time subscription will refresh orders automatically
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error creating order:', error);
@@ -462,7 +571,7 @@ export default function MenuPage() {
       alert('Payment successful! 🎉');
       setPaymentAmount('');
       setPhoneNumber('');
-      await loadTabData();
+      // Real-time subscription will refresh payments automatically
     } catch (error) {
       console.error('Payment error:', error);
       alert('Payment failed');
@@ -507,7 +616,7 @@ export default function MenuPage() {
       orderTime = new Date(oldestPendingOrder.created_at).getTime();
       sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
     }
-    const now = currentTime;
+    const now = Date.now();
     const elapsedSeconds = Math.floor((now - orderTime) / 1000);
     return {
       elapsed: elapsedSeconds,
@@ -548,7 +657,7 @@ export default function MenuPage() {
   const parallaxOffset = scrollY * 0.5;
   const numberedOrders = orders.map((order, index) => ({
     ...order,
-    number: index + 1
+    number: orders.length - index
   }));
   const lastOrder = orders[orders.length - 1];
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';
@@ -993,7 +1102,7 @@ export default function MenuPage() {
               Close My Tab
             </button>
             <button
-              onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} 
               className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300"
             >
               Order More Drinks

@@ -17,10 +17,36 @@ export default function TabPage() {
 
   useEffect(() => {
     loadTabData();
-    
-    // Auto-refresh every 5 seconds to catch new staff orders
-    const interval = setInterval(loadTabData, 5000);
-    return () => clearInterval(interval);
+  }, []);
+
+  // Real-time subscription for order updates
+  useEffect(() => {
+    const tabData = sessionStorage.getItem('currentTab');
+    if (!tabData) return;
+
+    const currentTab = JSON.parse(tabData);
+    const tabId = currentTab.id;
+
+    // Subscribe to order changes for this tab
+    const subscription = supabase
+      .channel(`tab_orders_${tabId}`)
+      .on('postgres_changes', 
+        { 
+          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+          schema: 'public', 
+          table: 'tab_orders',
+          filter: `tab_id=eq.${tabId}`
+        }, 
+        (payload) => {
+          console.log('Real-time order update:', payload);
+          loadTabData(); // Refresh data when any order changes
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadTabData = async () => {
