@@ -1,8 +1,8 @@
 {
-  "name": "@tabz/staff",
+  "name": "@tabeza/staff",
   "version": "1.0.0",
   "private": true,
-  "description": "Tabz Staff - Staff and admin interface for bar management",
+  "description": "Tabeza Staff - Staff and admin interface for bar management",
   "scripts": {
     "dev": "next dev -p 3003",
     "build": "next build",

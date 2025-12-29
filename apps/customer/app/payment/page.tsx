@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Phone } from 'lucide-react';
+import { formatCurrency } from '@/lib/formatUtils';
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -67,7 +68,7 @@ export default function PaymentPage() {
         {/* Balance Info */}
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-          <p className="text-3xl font-bold text-orange-600">KSh {balance}</p>
+          <p className="text-3xl font-bold text-orange-600">{formatCurrency(balance)}</p>
         </div>
 
         {/* Payment Method */}
@@ -140,7 +141,7 @@ export default function PaymentPage() {
           disabled={!phoneNumber || !paymentAmount}
           className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
-          Pay KSh {paymentAmount}
+          Pay {formatCurrency(Number(paymentAmount))}
         </button>
       </div>
     </div>

@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 // Create Supabase client for server-side use
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY! // Use service role key for admin access
+  process.env.SUPABASE_SECRET_KEY! // Use the new secret key naming
 );
 
 export async function POST(request: NextRequest) {

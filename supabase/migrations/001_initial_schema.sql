@@ -1,5 +1,5 @@
 -- ============================================
--- Tabz - SUPABASE DATABASE SCHEMA
+-- Tabeza - SUPABASE DATABASE SCHEMA
 -- Tab-first ordering system for bars
 -- ============================================
 

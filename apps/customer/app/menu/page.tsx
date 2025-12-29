@@ -3,6 +3,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/formatUtils';
+
+// Temporary format function to bypass import issue
+const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
+  const number = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(number)) return 'KSh 0';
+  return `KSh ${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(number)}`;
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -752,7 +763,7 @@ export default function MenuPage() {
                 <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
                   {formatTime(elapsedSeconds)}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Time elapsed (oldest pending)</p>
+                {/* <p className="text-xs text-gray-500 mt-2">Time elapsed (oldest pending)</p> */}
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
@@ -829,7 +840,7 @@ export default function MenuPage() {
                       {/* Product info below image */}
                       <div className="p-4">
                         <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
-                        <p className="text-xs text-gray-500 mt-1">KSh {barProduct.sale_price.toFixed(0)}</p>
+                        <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
                       </div>
                     </div>
                   </div>
@@ -851,12 +862,12 @@ export default function MenuPage() {
           <div className="flex items-center justify-between mb-4 bg-white rounded-lg border border-gray-100 p-4">
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Last Order</p>
-              <p className="text-2xl font-bold text-gray-900">KSh {lastOrderTotal}</p>
+              <p className="text-2xl font-bold text-gray-900">{tempFormatCurrency(lastOrderTotal)}</p>
               <p className="text-xs text-gray-400 mt-1">{lastOrderTime}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Orders</p>
-              <p className="text-2xl font-bold text-orange-500">KSh {tabTotal.toFixed(0)}</p>
+              <p className="text-2xl font-bold text-orange-500">{tempFormatCurrency(tabTotal)}</p>
             </div>
           </div>
         )}
@@ -878,13 +889,13 @@ export default function MenuPage() {
                         <span className="text-sm font-medium text-gray-900">Order #{order.number}</span>
                         <span className="text-xs text-gray-400">{timeAgo(order.created_at)}</span>
                       </div>
-                      <p className="text-sm font-medium text-gray-900">KSh {parseFloat(order.total).toFixed(0)}</p>
+                      <p className="text-sm font-medium text-gray-900">{tempFormatCurrency(order.total)}</p>
                     </div>
                     <div className="space-y-1">
                       {items.map((item: any, i: number) => (
                         <div key={i} className="flex justify-between">
                           <p className="text-xs text-gray-600">{item.quantity}x {item.name}</p>
-                          <p className="text-xs text-gray-500">KSh {item.total}</p>
+                          <p className="text-xs text-gray-500">{tempFormatCurrency(item.total)}</p>
                         </div>
                       ))}
                     </div>
@@ -990,7 +1001,7 @@ export default function MenuPage() {
             <div className="border-t border-gray-100 pt-4">
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
                 <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-                <p className="text-3xl font-bold text-orange-600">KSh {balance.toFixed(0)}</p>
+                <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
               </div>
               <div className="space-y-4">
                 {/* M-Pesa Form */}
@@ -1085,7 +1096,7 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-      {balance === 0 && orders.length > 0 && (
+      {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
         <div className="bg-white p-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
           <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-4 text-center">
@@ -1162,7 +1173,7 @@ export default function MenuPage() {
                     </div>
                     <div>
                       <p className="font-semibold">{item.name}</p>
-                      <p className="text-sm text-gray-600">KSh {item.price}</p>
+                      <p className="text-sm text-gray-600">{tempFormatCurrency(item.price)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1176,7 +1187,7 @@ export default function MenuPage() {
             <div className="border-t pt-4">
               <div className="flex justify-between mb-4">
                 <span className="font-bold">Total</span>
-                <span className="text-xl font-bold text-orange-600">KSh {cartTotal}</span>
+                <span className="text-xl font-bold text-orange-600">{tempFormatCurrency(cartTotal)}</span>
               </div>
               <button onClick={confirmOrder} disabled={submittingOrder} className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300">
                 {submittingOrder ? 'Submitting...' : 'Confirm Order'}
@@ -1189,7 +1200,7 @@ export default function MenuPage() {
         <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-orange-500 text-white rounded-full p-4 shadow-lg hover:bg-orange-600 flex items-center gap-2 z-20">
           <ShoppingCart size={24} />
           <span className="font-bold">{cartCount}</span>
-          <span className="ml-2 font-bold">KSh {cartTotal}</span>
+          <span className="ml-2 font-bold">{tempFormatCurrency(cartTotal)}</span>
         </button>
       )}
     </div>

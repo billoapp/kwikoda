@@ -6,6 +6,23 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+// Temporary format functions to bypass import issue
+const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
+  const number = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(number)) return 'KSh 0';
+  return `KSh ${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(number)}`;
+};
+
+const tempFormatDigitalTime = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 export default function TabDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -179,7 +196,7 @@ export default function TabDetailPage() {
     const balance = getTabBalance();
     
     if (balance > 0) {
-      const confirm = window.confirm(`Tab still has KSh ${balance.toFixed(0)} balance. Write off and close?`);
+      const confirm = window.confirm(`Tab still has ${tempFormatCurrency(balance)} balance. Write off and close?`);
       if (!confirm) return;
     }
     
@@ -216,7 +233,7 @@ export default function TabDetailPage() {
   const timeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    if (seconds < 60) return 'Just now';
+    if (seconds < 60) return tempFormatDigitalTime(seconds); // Show digital time for recent events
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
   };
@@ -311,17 +328,17 @@ export default function TabDetailPage() {
           <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
             <div className="flex items-center justify-between mb-2 text-sm">
               <span className="text-orange-100">Total Orders</span>
-              <span className="font-semibold">KSh {ordersTotal.toFixed(0)}</span>
+              <span className="font-semibold">{tempFormatCurrency(ordersTotal)}</span>
             </div>
             <div className="flex items-center justify-between mb-2 text-sm">
               <span className="text-orange-100">Payments</span>
-              <span className="font-semibold">- KSh {paymentsTotal.toFixed(0)}</span>
+              <span className="font-semibold">- {tempFormatCurrency(paymentsTotal)}</span>
             </div>
             <div className="border-t border-white border-opacity-30 my-2"></div>
             <div className="flex items-center justify-between">
               <span className="font-bold text-lg">Balance</span>
               <span className={`text-2xl font-bold ${balance > 0 ? '' : 'text-green-300'}`}>
-                KSh {balance.toFixed(0)}
+                {tempFormatCurrency(balance)}
               </span>
             </div>
           </div>
@@ -350,7 +367,7 @@ export default function TabDetailPage() {
                         return 0;
                       }
                     })()} items • 
-                    KSh {parseFloat(newOrderNotification.total).toFixed(0)}
+                    {tempFormatCurrency(newOrderNotification.total)}
                   </p>
                 </div>
               </div>
@@ -431,7 +448,7 @@ export default function TabDetailPage() {
                         <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>
                       </div>
                       <div className="text-right ml-4">
-                        <p className="font-bold text-orange-600">KSh {parseFloat(order.total).toFixed(0)}</p>
+                        <p className="font-bold text-orange-600">{tempFormatCurrency(order.total)}</p>
                       </div>
                     </div>
                     
@@ -492,7 +509,7 @@ export default function TabDetailPage() {
                         <p className="text-sm text-gray-500">{timeAgo(payment.created_at)}</p>
                       </div>
                     </div>
-                    <p className="font-bold text-green-600">+ KSh {parseFloat(payment.amount).toFixed(0)}</p>
+                    <p className="font-bold text-green-600">+ {tempFormatCurrency(payment.amount)}</p>
                   </div>
                 ))}
               </div>
@@ -508,7 +525,7 @@ export default function TabDetailPage() {
                   : 'bg-orange-500 text-white hover:bg-orange-600'
               }`}
             >
-              {balance === 0 ? 'Close Tab' : `Close Tab (Write Off KSh ${balance.toFixed(0)})`}
+              {balance === 0 ? 'Close Tab' : `Close Tab (Write Off ${tempFormatCurrency(balance)})`}
             </button>
             
             <button className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300">

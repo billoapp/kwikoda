@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Search, X, Plus, CheckCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/formatUtils';
 
 const MOCK_MENU = [
   { id: 1, name: "Tusker Lager 500ml", category: "Beer", price: 300 },
@@ -245,7 +246,7 @@ export default function AddOrderPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <h3 className="font-semibold text-gray-800">{item.name}</h3>
-                    <p className="text-orange-600 font-bold">KSh {item.price}</p>
+                    <p className="text-orange-600 font-bold">{formatCurrency(item.price)}</p>
                   </div>
                   {!inCart ? (
                     <button
@@ -286,7 +287,7 @@ export default function AddOrderPage() {
             {orderCart.map(item => (
               <div key={item.id} className="flex items-center justify-between py-1 text-sm">
                 <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                <span className="font-medium">KSh {item.price * item.quantity}</span>
+                <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
               </div>
             ))}
           </div>
@@ -295,7 +296,7 @@ export default function AddOrderPage() {
           <div className="flex items-center justify-between mb-3 pt-3 border-t">
             <div>
               <p className="text-sm text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-orange-600">KSh {cartTotal.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-orange-600">{formatCurrency(cartTotal)}</p>
             </div>
             <button
               onClick={handleConfirmOrder}

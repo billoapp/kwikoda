@@ -1,8 +1,8 @@
 {
-  "name": "tabz",
+  "name": "tabeza",
   "version": "1.0.0",
   "private": true,
-  "description": "Tabz - Anonymous tab management system for bars and restaurants",
+  "description": "Tabeza - Anonymous tab management system for bars and restaurants",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -10,14 +10,14 @@
   ],
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
-    "dev:customer": "pnpm --filter @tabz/customer dev",
-    "dev:staff": "pnpm --filter @tabz/staff dev",
+    "dev:customer": "pnpm --filter @tabeza/customer dev",
+    "dev:staff": "pnpm --filter @tabeza/staff dev",
     "build": "pnpm --recursive --filter \"./apps/*\" build",
-    "build:customer": "pnpm --filter @tabz/customer build",
-    "build:staff": "pnpm --filter @tabz/staff build",
+    "build:customer": "pnpm --filter @tabeza/customer build",
+    "build:staff": "pnpm --filter @tabeza/staff build",
     "start": "pnpm --recursive --filter \"./apps/*\" start",
-    "start:customer": "pnpm --filter @tabz/customer start",
-    "start:staff": "pnpm --filter @tabz/staff start",
+    "start:customer": "pnpm --filter @tabeza/customer start",
+    "start:staff": "pnpm --filter @tabeza/staff start",
     "lint": "pnpm --recursive lint",
     "clean": "pnpm --recursive clean && rimraf node_modules",
     "type-check": "pnpm --recursive type-check"

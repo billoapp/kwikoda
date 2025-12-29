@@ -5,7 +5,7 @@ import { BarProvider } from '@/contexts/page';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Tabz Staff - Bar Management',
+  title: 'Tabeza Staff - Bar Management',
   description: 'Manage tabs, orders, and payments for your bar',
 };
 

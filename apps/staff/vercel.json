@@ -1,5 +1,5 @@
 {
-  "name": "Tabz-staff",
+  "name": "Tabeza-staff",
   "buildCommand": "pnpm --filter staff run build",
   "outputDirectory": ".next",
   "installCommand": "pnpm install --frozen-lockfile",

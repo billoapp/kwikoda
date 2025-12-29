@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ShoppingCart, Clock, CheckCircle, CreditCard, RefreshCw, User, UserCog, ThumbsUp, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { formatCurrency, formatDigitalTime } from '@/lib/formatUtils';
 
 export default function TabPage() {
   const router = useRouter();
@@ -185,7 +186,7 @@ export default function TabPage() {
   const timeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    if (seconds < 60) return 'Just now';
+    if (seconds < 60) return formatDigitalTime(seconds); // Show digital time for recent events
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
   };
@@ -227,16 +228,16 @@ export default function TabPage() {
         <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-orange-100">Total Orders</span>
-            <span className="font-semibold">KSh {tabTotal.toFixed(0)}</span>
+            <span className="font-semibold">{formatCurrency(tabTotal)}</span>
           </div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-orange-100">Paid</span>
-            <span className="font-semibold">KSh {paidTotal.toFixed(0)}</span>
+            <span className="font-semibold">{formatCurrency(paidTotal)}</span>
           </div>
           <div className="border-t border-white border-opacity-30 my-2"></div>
           <div className="flex items-center justify-between">
             <span className="font-bold">Balance</span>
-            <span className="text-2xl font-bold">KSh {balance.toFixed(0)}</span>
+            <span className="text-2xl font-bold">{formatCurrency(balance)}</span>
           </div>
         </div>
       </div>
@@ -342,7 +343,7 @@ export default function TabPage() {
                   {orderItems.map((item: any, idx: number) => (
                     <div key={idx} className="flex items-center justify-between text-sm">
                       <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                      <span className="text-gray-900 font-medium">KSh {item.total}</span>
+                      <span className="text-gray-900 font-medium">{formatCurrency(item.total)}</span>
                     </div>
                   ))}
                 </div>
@@ -350,7 +351,7 @@ export default function TabPage() {
                 {/* Total */}
                 <div className="border-t pt-2 flex items-center justify-between mb-3">
                   <span className="font-semibold text-gray-800">Order Total</span>
-                  <span className="font-bold text-orange-600">KSh {parseFloat(order.total).toFixed(0)}</span>
+                  <span className="font-bold text-orange-600">{formatCurrency(order.total)}</span>
                 </div>
 
                 {/* 🐛 DEBUG: Always show this section to test */}
@@ -429,7 +430,7 @@ export default function TabPage() {
             className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 flex items-center justify-center gap-2 transition"
           >
             <CreditCard size={20} />
-            Pay KSh {balance.toFixed(0)}
+            Pay {formatCurrency(balance)}
           </button>
         </div>
       )}

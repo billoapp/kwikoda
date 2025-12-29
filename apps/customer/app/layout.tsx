@@ -4,7 +4,7 @@ import './globals.css';  // ← Make sure this line exists
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Tabz',
+  title: 'Tabeza',
 };
 
 export default function RootLayout({

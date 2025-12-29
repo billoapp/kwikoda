@@ -17,6 +17,16 @@ import {
 import { supabase } from '@/lib/supabase';
 import InteractiveImageCropper from '@/components/InteractiveImageCropper';
 
+// Temporary format function to bypass import issue
+const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
+  const number = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(number)) return 'KSh 0';
+  return `KSh ${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(number)}`;
+};
+
 interface Product {
   id: string;
   name: string;
@@ -1027,7 +1037,7 @@ export default function MenuManagementPage() {
                             </div>
                             {item.description && <p className="text-xs text-gray-600 mt-1">{item.description}</p>}
                             <p className="text-sm text-orange-600 font-bold mt-1">
-                              KSh {item.sale_price.toLocaleString()}
+                              {tempFormatCurrency(item.sale_price)}
                             </p>
                           </div>
                           <button

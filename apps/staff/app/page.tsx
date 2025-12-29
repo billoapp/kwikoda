@@ -6,6 +6,16 @@ import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw,
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 
+// Format functions for thousand separators
+const formatCurrency = (amount: number | string, decimals = 0): string => {
+  const number = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(number)) return 'KSh 0';
+  return `KSh ${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(number)}`;
+};
+
 export default function TabsPage() {
   const router = useRouter();
   const { user, bar, loading: authLoading, signOut } = useAuth();
@@ -298,7 +308,7 @@ export default function TabsPage() {
 
                     <div className="text-center py-4 bg-orange-50 rounded-lg mb-3">
                       <p className={`text-2xl font-bold ${balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                        KSh {balance.toFixed(0)}
+                        {formatCurrency(balance)}
                       </p>
                       <p className="text-xs text-gray-500">Balance</p>
                     </div>
