@@ -12,7 +12,7 @@ function LandingContent() {
   const [manualCode, setManualCode] = useState('');
   
   useEffect(() => {
-    // Check if there's a slug in the URL (from QR code scan)
+    // Check if there's a slug in URL (from QR code scan)
     const slug = searchParams.get('bar') || searchParams.get('slug');
     
     console.log('🔍 Landing page - Full URL:', window.location.href);
@@ -29,14 +29,14 @@ function LandingContent() {
   const handleManualSubmit = () => {
     if (manualCode.trim()) {
       sessionStorage.setItem('scanned_bar_slug', manualCode.trim());
-      router.push(`/start?bar=${manualCode.trim()}`);
+      console.log('✅ Manual bar slug stored:', manualCode.trim());
     } else {
       alert('Please enter a valid bar slug');
     }
   };
 
   const handleStart = () => {
-    const slug = searchParams.get('bar') || searchParams.get('slug') || sessionStorage.getItem('scanned_bar_slug');
+    const slug = searchParams.get('bar') || searchParams.get('slug') || sessionStorage.getItem('scanned_bar_slug') || manualCode.trim();
     
     console.log('🚀 Start button clicked, bar slug:', slug);
     
@@ -44,8 +44,8 @@ function LandingContent() {
       // Navigate to consent/start page WITH slug parameter
       router.push(`/start?bar=${slug}`);
     } else {
-      // No slug - stay on landing page
-      console.log('No bar slug found, staying on landing page');
+      // No slug - show error
+      alert('Please scan a QR code or enter a valid bar slug');
     }
   };
 
@@ -53,22 +53,22 @@ function LandingContent() {
     {
       icon: Zap,
       title: 'Order Instantly',
-      description: 'Skip the wait. Order drinks directly from your table.'
+      description: 'Order drinks directly from your table.'
     },
     {
       icon: DollarSign,
       title: 'Track Expenses',
-      description: 'See your tab in real-time. No surprises at checkout.'
+      description: 'No surprises at checkout.'
     },
     {
       icon: Bell,
       title: 'Get Updates',
-      description: 'Know when your order is ready. Stay in the loop.'
+      description: 'Stay in the loop.'
     },
     {
       icon: Shield,
       title: 'Stay Anonymous',
-      description: 'No signup required. Your privacy is protected.'
+      description: 'Your privacy is protected.'
     }
   ];
 
@@ -107,22 +107,14 @@ function LandingContent() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Or enter your bar slug manually:
           </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-              placeholder="Enter bar slug (e.g., sunset-lounge)"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
-            />
-            <button
-              onClick={handleManualSubmit}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-            >
-              Go
-            </button>
-          </div>
+          <input
+            type="text"
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value)}
+            placeholder="Enter bar slug (e.g., sunset-lounge)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
+          />
         </div>
         
         {/* Debug info (remove in production) */}
