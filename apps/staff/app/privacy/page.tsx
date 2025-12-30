@@ -69,7 +69,7 @@ export default function PrivacyPage() {
               </div>
             </div>
 
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">3. Legal Basis for Processing (Kenya Data Protection Act)</h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">3. Legal Basis for Processing</h3>
             <p className="text-gray-600 mb-4">
               We process your personal data based on the following legal grounds under the Kenya Data Protection Act, 2019:
             </p>
@@ -165,11 +165,11 @@ export default function PrivacyPage() {
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <p className="flex items-center gap-2 text-gray-700">
                 <Mail size={16} className="text-orange-500" />
-                <strong>Data Protection Officer:</strong> dpo@tabeza.co.ke
+                <strong>Data Protection Officer:</strong> billo.mobile.app@gmail.com
               </p>
               <p className="flex items-center gap-2 text-gray-700">
                 <Phone size={16} className="text-orange-500" />
-                <strong>Hotline:</strong> +254 XXX XXX XXX
+                <strong>Hotline:</strong> +254 722 527236
               </p>
               <p className="flex items-center gap-2 text-gray-700">
                 <MapPin size={16} className="text-orange-500" />
@@ -177,7 +177,7 @@ export default function PrivacyPage() {
               </p>
               <p className="flex items-center gap-2 text-gray-700">
                 <Eye size={16} className="text-orange-500" />
-                <strong>Office of the Data Protection Commissioner:</strong> complaints@odpc.go.ke
+                <strong>Office of the Data Protection Commissioner:</strong> billo.mobile.app@gmail.com
               </p>
             </div>
 
