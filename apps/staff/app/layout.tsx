@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { BarProvider } from '@/contexts/page';
 import { ToastProvider } from '@/components/ui/Toast';
+import PWAInstall from '@/components/PWAInstall';
 
 export const dynamic = 'force-dynamic';
 
@@ -179,6 +180,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ToastProvider>
           <BarProvider>
+            <PWAInstall />
             {children}
           </BarProvider>
         </ToastProvider>
