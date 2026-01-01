@@ -96,6 +96,7 @@ export default function MenuPage() {
   const [messageSentModal, setMessageSentModal] = useState(false);
   const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
   const [newMessageAlert, setNewMessageAlert] = useState<any>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   
   const loadAttempted = useRef(false);
 
@@ -845,6 +846,13 @@ export default function MenuPage() {
       
       if (!error && data) {
         setTelegramMessages(data);
+        
+        // Calculate unread messages count
+        const unreadCount = data.filter(msg => 
+          msg.initiated_by === 'staff' && 
+          msg.status !== 'completed'
+        ).length;
+        setUnreadMessagesCount(unreadCount);
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -954,6 +962,20 @@ export default function MenuPage() {
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
             <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
+            
+            {/* Message button with unread badge */}
+            {unreadMessagesCount > 0 && (
+              <div className="relative">
+                <button onClick={() => setShowMessageModal(true)} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm flex items-center gap-2">
+                  <MessageCircle size={18} />
+                  Messages
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                    {unreadMessagesCount}
+                  </span>
+                </button>
+              </div>
+            )}
+            
             {/* DEBUG: Test message button */}
             <button 
               onClick={async () => {

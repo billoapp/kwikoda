@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut, AlertTriangle } from 'lucide-react';
+import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut, AlertTriangle, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 
@@ -129,7 +129,7 @@ export default function TabsPage() {
 
       const tabsWithDetails = await Promise.all(
         (tabsData || []).map(async (tab: any) => {
-          const [ordersResult, paymentsResult] = await Promise.all([
+          const [ordersResult, paymentsResult, messagesResult] = await Promise.all([
             supabase
               .from('tab_orders')
               .select('id, total, status, created_at, confirmed_at')
@@ -140,14 +140,21 @@ export default function TabsPage() {
               .from('tab_payments')
               .select('id, amount, status, created_at')
               .eq('tab_id', tab.id)
-              .order('created_at', { ascending: false })
+              .order('created_at', { ascending: false }),
+              
+            supabase
+              .from('tab_telegram_messages')
+              .select('id, status, created_at')
+              .eq('tab_id', tab.id)
+              .eq('status', 'pending')
           ]);
 
           return {
             ...tab,
             bar: tab.bars,
             orders: ordersResult.data || [],
-            payments: paymentsResult.data || []
+            payments: paymentsResult.data || [],
+            unreadMessages: messagesResult.data?.length || 0
           };
         })
       );
@@ -399,11 +406,21 @@ export default function TabsPage() {
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-lg font-bold text-gray-800 truncate">{getDisplayName(tab)}</h3>
-                        {hasPendingOrders && (
-                          <span className="flex items-center justify-center w-6 h-6 bg-yellow-400 rounded-full animate-pulse">
-                            <AlertCircle size={14} className="text-yellow-900" />
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {tab.unreadMessages > 0 && (
+                            <div className="bg-blue-500 text-white rounded-full p-1 relative">
+                              <MessageCircle size={14} />
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                                {tab.unreadMessages}
+                              </span>
+                            </div>
+                          )}
+                          {hasPendingOrders && (
+                            <span className="flex items-center justify-center w-6 h-6 bg-yellow-400 rounded-full animate-pulse">
+                              <AlertCircle size={14} className="text-yellow-900" />
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-gray-400">Opened {timeAgo(tab.opened_at)}</p>
                     </div>
