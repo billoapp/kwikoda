@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog } from 'lucide-react';
+import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // Temporary format functions
@@ -16,56 +16,14 @@ const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
   }).format(number)}`;
 };
 
-// Real-time timer format for pending orders
-const formatPendingTime = (createdAt: string, currentTime: number): string => {
-  const created = new Date(createdAt).getTime();
-  const elapsed = Math.floor((currentTime - created) / 1000); // seconds
-  
-  const hours = Math.floor(elapsed / 3600);
-  const minutes = Math.floor((elapsed % 3600) / 60);
-  const seconds = elapsed % 60;
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
-  } else {
-    return `${seconds}s`;
-  }
-};
-
-// Calculate average service time from confirmed orders across all tabs
-const calculateAverageServiceTime = (orders: any[]): string => {
-  const confirmedOrders = orders.filter(o => 
-    o.status === 'confirmed' && 
-    o.confirmed_at && 
-    o.status !== 'cancelled'  
-  );
-  if (confirmedOrders.length === 0) return '0m';
-  
-  const totalTime = confirmedOrders.reduce((sum, order) => {
-    const created = new Date(order.created_at).getTime();
-    const confirmed = new Date(order.confirmed_at).getTime();
-    const serviceTimeSeconds = Math.floor((confirmed - created) / 1000);
-    return sum + serviceTimeSeconds;
-  }, 0);
-  
-  const avgSeconds = Math.floor(totalTime / confirmedOrders.length);
-  const avgMinutes = Math.floor(avgSeconds / 60);
-  
-  if (avgMinutes > 0) {
-    return `${avgMinutes}m`;
-  } else {
-    return '<1m';
-  }
-};
-
-const tempFormatDigitalTime = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-};
+interface CartItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+  type: 'catalog' | 'custom';
+  product_id?: string;
+}
 
 export default function TabDetailPage() {
   const router = useRouter();
@@ -77,16 +35,52 @@ export default function TabDetailPage() {
   const [displayName, setDisplayName] = useState('');
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  // Cart state
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    const storedCart = localStorage.getItem(`tab_cart_${tabId}`);
+    if (storedCart) {
+      try {
+        const items = JSON.parse(storedCart);
+        console.log('📦 Loading cart from localStorage:', items);
+        setCartItems(items);
+      } catch (e) {
+        console.error('Error loading cart from localStorage:', e);
+      }
+    }
+  }, [tabId]);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      localStorage.setItem(`tab_cart_${tabId}`, JSON.stringify(cartItems));
+    } else {
+      localStorage.removeItem(`tab_cart_${tabId}`);
+    }
+  }, [cartItems, tabId]);
 
   useEffect(() => {
     loadTabData();
+    loadCartFromSession();
   }, [tabId]);
+
+  // Expose addToCart to child windows
+  useEffect(() => {
+    // @ts-ignore
+    window.addToCart = (item: CartItem) => {
+      addToCart(item);
+    };
+  }, []);
 
   // Real-time timer for pending orders
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
-    }, 1000); // Update every second
+    }, 1000);
 
     return () => clearInterval(interval);
   }, []);
@@ -94,7 +88,6 @@ export default function TabDetailPage() {
   useEffect(() => {
     if (!tabId) return;
 
-    // Subscribe to new orders
     const orderSubscription = supabase
       .channel(`tab_orders_${tabId}`)
       .on('postgres_changes', 
@@ -105,9 +98,6 @@ export default function TabDetailPage() {
           filter: `tab_id=eq.${tabId}`
         }, 
         (payload) => {
-          console.log('New order received:', payload.new);
-          
-          // Only show notification for customer orders
           if (payload.new.initiated_by === 'customer') {
             setNewOrderNotification(payload.new);
             
@@ -121,7 +111,6 @@ export default function TabDetailPage() {
       )
       .subscribe();
 
-    // Subscribe to payment changes
     const paymentSubscription = supabase
       .channel(`tab_payments_${tabId}`)
       .on('postgres_changes', 
@@ -132,13 +121,11 @@ export default function TabDetailPage() {
           filter: `tab_id=eq.${tabId}`
         }, 
         (payload) => {
-          console.log('🔍 Payment change detected:', payload);
           loadTabData();
         }
       )
       .subscribe();
 
-    // Subscribe to tab status changes
     const tabSubscription = supabase
       .channel(`tab_status_${tabId}`)
       .on('postgres_changes', 
@@ -149,10 +136,7 @@ export default function TabDetailPage() {
           filter: `id=eq.${tabId}`
         }, 
         (payload) => {
-          console.log('🔍 Tab status change detected:', payload);
-          
           if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
-            console.log('🛑 Tab was automatically closed!');
             alert('⚠️ Tab was automatically closed!');
           }
           
@@ -188,7 +172,6 @@ export default function TabDetailPage() {
 
       if (barError) throw barError;
 
-      // ✅ Get orders with order_number
       const { data: ordersResult, error: ordersError } = await supabase
         .from('tab_orders')
         .select('*')
@@ -212,7 +195,6 @@ export default function TabDetailPage() {
         payments: paymentsResult || []
       };
 
-      console.log('✅ Tab loaded:', fullTabData);
       setTab(fullTabData);
 
       let name = `Tab ${tabData.tab_number || 'Unknown'}`;
@@ -233,6 +215,126 @@ export default function TabDetailPage() {
     }
   };
 
+  const loadCartFromSession = () => {
+    const stored = sessionStorage.getItem('tab_cart_items');
+    if (stored) {
+      try {
+        const items = JSON.parse(stored);
+        console.log('📥 Loading items from session storage:', items);
+        
+        // Instead of replacing, APPEND to existing cart
+        setCartItems(prev => {
+          const mergedItems = [...prev];
+          
+          items.forEach((newItem: CartItem) => {
+            // Generate a truly unique ID for each new item
+            const uniqueItem = {
+              ...newItem,
+              id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` 
+            };
+            mergedItems.push(uniqueItem);
+          });
+          
+          console.log('🛒 Merged cart items:', mergedItems);
+          return mergedItems;
+        });
+        
+        // Clear session storage after loading
+        sessionStorage.removeItem('tab_cart_items');
+      } catch (e) {
+        console.error('Error loading cart from session:', e);
+      }
+    }
+  };
+
+  const addToCart = (item: CartItem) => {
+    console.log('➕ Adding item to cart:', item);
+    
+    setCartItems(prev => {
+      // Create a truly unique ID for this item
+      const uniqueItem = {
+        ...item,
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` 
+      };
+      
+      console.log('🛒 Previous cart items:', prev);
+      console.log('🆕 New item with unique ID:', uniqueItem);
+      
+      // Simply add the new item to the array
+      const newCart = [...prev, uniqueItem];
+      console.log('✅ Updated cart items:', newCart);
+      return newCart;
+    });
+  };
+
+  const updateCartItemQuantity = (id: string, delta: number) => {
+    setCartItems(prev => 
+      prev.map(item => {
+        if (item.id === id) {
+          const newQty = item.quantity + delta;
+          return newQty > 0 ? { ...item, quantity: newQty } : item;
+        }
+        return item;
+      }).filter(item => item.quantity > 0)
+    );
+  };
+
+  const removeCartItem = (id: string) => {
+    setCartItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const clearCart = () => {
+    setCartItems([]);
+    localStorage.removeItem(`tab_cart_${tabId}`);
+  };
+
+  const getCartTotal = () => {
+    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
+  const submitCartOrder = async () => {
+    if (cartItems.length === 0) {
+      alert('Please add items to cart first');
+      return;
+    }
+
+    setSubmittingOrder(true);
+
+    try {
+      const orderItems = cartItems.map(item => ({
+        product_id: item.type === 'catalog' ? item.product_id : null,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.price * item.quantity
+      }));
+
+      const total = getCartTotal();
+
+      const { error } = await supabase
+        .from('tab_orders')
+        .insert({
+          tab_id: tabId,
+          items: orderItems,
+          total: total,
+          status: 'pending',
+          initiated_by: 'staff'
+        });
+
+      if (error) throw error;
+
+      alert('✅ Order sent to customer for approval!');
+      clearCart();
+      loadTabData();
+      
+    } catch (error: any) {
+      console.error('Error creating order:', error);
+      alert(`Failed to create order: ${error.message}`);
+    } finally {
+      setSubmittingOrder(false);
+    }
+  };
+
   const handleMarkServed = async (orderId: string, initiatedBy: string) => {
     if (initiatedBy === 'staff') {
       alert('⚠️ Cannot approve staff-initiated orders. Customer must approve.');
@@ -250,7 +352,6 @@ export default function TabDetailPage() {
 
       if (error) throw error;
 
-      console.log('✅ Order marked as served with timestamp');
       loadTabData();
       
     } catch (error) {
@@ -264,8 +365,6 @@ export default function TabDetailPage() {
     if (!amount || isNaN(Number(amount))) return;
 
     try {
-      console.log('🔍 Adding cash payment:', amount);
-      
       const { error } = await supabase
         .from('tab_payments')
         .insert({
@@ -278,7 +377,6 @@ export default function TabDetailPage() {
 
       if (error) throw error;
 
-      console.log('✅ Cash payment added successfully');
       loadTabData();
       
     } catch (error) {
@@ -359,7 +457,7 @@ export default function TabDetailPage() {
       });
     }
     
-    if (seconds < 60) return tempFormatDigitalTime(seconds);
+    if (seconds < 60) return `${seconds}s ago`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
   };
@@ -512,97 +610,194 @@ export default function TabDetailPage() {
         )}
 
         <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-gray-800">Orders</h2>
+          {/* Order Creation Buttons - Always visible */}
+          <div className="flex gap-4 mb-6 justify-center">
+            <button
+              onClick={() => router.push(`/tabs/${tabId}/quick-order`)}
+              className="text-orange-600 font-medium hover:text-orange-700 flex items-center gap-2"
+            >
+              <Plus size={18} />
+              Create Order
+            </button>
             <button
               onClick={() => router.push(`/tabs/${tabId}/add-order`)}
-              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600"
+              className="text-purple-600 font-medium hover:text-purple-700 flex items-center gap-2"
             >
-              <Plus size={20} />
-              Add Order
+              <ShoppingCart size={18} />
+              Browse Catalog
             </button>
           </div>
-          
-          <div className="space-y-3 mb-6">
+
+          {/* Cart Section */}
+          {cartItems.length > 0 && (
+            <div className="mb-6 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ShoppingCart size={20} />
+                  <div>
+                    <h2 className="font-bold text-lg">Current Cart</h2>
+                    <p className="text-sm text-orange-100">{cartItems.length} items • {tempFormatCurrency(getCartTotal())}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={clearCart}
+                  className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+                {cartItems.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-gray-800">{item.name}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${item.type === 'catalog' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {item.type === 'catalog' ? 'Catalog' : 'Custom'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">{tempFormatCurrency(item.price)} each</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-white border rounded-lg">
+                        <button
+                          onClick={() => updateCartItemQuantity(item.id, -1)}
+                          className="p-2 hover:bg-gray-100"
+                        >
+                          <X size={16} />
+                        </button>
+                        <span className="font-bold w-8 text-center">{item.quantity}</span>
+                        <button
+                          onClick={() => updateCartItemQuantity(item.id, 1)}
+                          className="p-2 hover:bg-gray-100"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => removeCartItem(item.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Total</p>
+                    <p className="text-2xl font-bold text-orange-600">{tempFormatCurrency(getCartTotal())}</p>
+                  </div>
+                  <button
+                    onClick={submitCartOrder}
+                    disabled={submittingOrder}
+                    className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <CheckCircle size={20} />
+                    {submittingOrder ? 'Sending...' : 'Send to Customer'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Orders Section */}
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-3">Recent Orders</h2>
+            
             {(!tab.orders || tab.orders.length === 0) ? (
               <div className="bg-white rounded-xl p-6 text-center text-gray-500">
+                <Clock size={32} className="mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No orders yet</p>
               </div>
             ) : (
-              tab.orders.map((order: any) => {
-                const orderItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-                const initiatedBy = order.initiated_by || 'customer';
-                const orderStyle = getOrderStyle(initiatedBy);
-                
-                // ✅ FIXED: Use database order_number directly
-                const orderNumber = order.order_number || '?';
-                
-                return (
-                  <div key={order.id} className={`bg-white rounded-xl p-4 shadow-sm ${orderStyle.borderColor}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        {orderStyle.icon}
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${orderStyle.labelColor}`}>
-                          {orderStyle.label}
-                        </span>
-                        {/* ✅ Display database order number */}
-                        <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-full">
-                          #{orderNumber}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        {order.status === 'pending' ? (
-                          <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
-                            <Clock size={12} />
-                            {initiatedBy === 'staff' ? 'Awaiting Customer' : 'Pending'}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
-                            <CheckCircle size={12} />
-                            Served
-                          </span>
-                        )}
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {tab.orders.map((order: any) => {
+                  const initiatedBy = order.initiated_by || 'customer';
+                  const orderStyle = getOrderStyle(initiatedBy);
+                  const orderNumber = order.order_number || order.id?.substring(0, 8) || 'N/A';
+                  
+                  let orderItems = [];
+                  try {
+                    orderItems = typeof order.items === 'string' 
+                      ? JSON.parse(order.items) 
+                      : order.items;
+                  } catch (e) {
+                    orderItems = [];
+                  }
 
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="space-y-1 mb-2">
-                          {orderItems.map((item: any, idx: number) => (
-                            <p key={idx} className="text-sm text-gray-700">
-                              {item.quantity}x {item.name}
-                            </p>
-                          ))}
+                  return (
+                    <div key={order.id} className={`bg-white rounded-xl p-4 shadow-sm ${orderStyle.borderColor}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {orderStyle.icon}
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${orderStyle.labelColor}`}>
+                            {orderStyle.label}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-full">
+                            #{orderNumber}
+                          </span>
                         </div>
-                        <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>
+                        <div className="text-right">
+                          {order.status === 'pending' ? (
+                            <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
+                              <Clock size={12} />
+                              {initiatedBy === 'staff' ? 'Awaiting Customer' : 'Pending'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
+                              <CheckCircle size={12} />
+                              Served
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right ml-4">
-                        <p className="font-bold text-orange-600">{tempFormatCurrency(order.total)}</p>
-                      </div>
-                    </div>
-                    
-                    {order.status === 'pending' && (
-                      <>
-                        {initiatedBy === 'customer' ? (
-                          <button
-                            onClick={() => handleMarkServed(order.id, initiatedBy)}
-                            className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600"
-                          >
-                            Mark as Served
-                          </button>
-                        ) : (
-                          <div className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-medium text-center">
-                            ⏳ Waiting for customer approval
+
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="space-y-1 mb-2">
+                            {orderItems.map((item: any, idx: number) => (
+                              <p key={idx} className="text-sm text-gray-700">
+                                {item.quantity}x {item.name}
+                              </p>
+                            ))}
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })
+                          <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="font-bold text-orange-600">{tempFormatCurrency(order.total)}</p>
+                        </div>
+                      </div>
+                      
+                      {order.status === 'pending' && (
+                        <>
+                          {initiatedBy === 'customer' ? (
+                            <button
+                              onClick={() => handleMarkServed(order.id, initiatedBy)}
+                              className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600"
+                            >
+                              Mark as Served
+                            </button>
+                          ) : (
+                            <div className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-medium text-center">
+                              ⏳ Waiting for customer approval
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
+          {/* Payments Section */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-800">Payments</h2>
@@ -610,7 +805,7 @@ export default function TabDetailPage() {
                 onClick={handleAddCashPayment}
                 className="text-sm text-orange-600 font-medium"
               >
-                + Recieve Cash
+                + Receive Cash
               </button>
             </div>
             
@@ -645,6 +840,7 @@ export default function TabDetailPage() {
             )}
           </div>
 
+          {/* Action Buttons */}
           <div className="space-y-3 pb-6">
             <button
               onClick={handleCloseTab}

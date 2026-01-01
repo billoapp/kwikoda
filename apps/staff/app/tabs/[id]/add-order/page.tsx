@@ -22,13 +22,22 @@ const MOCK_MENU = [
   { id: 103, name: "Chips Masala", category: "Food", price: 400 },
 ];
 
+interface CartItem {
+  id: number;
+  name: string;
+  category: string;
+  price: number;
+  quantity: number;
+  type: 'catalog' | 'custom';
+}
+
 export default function AddOrderPage() {
   const router = useRouter();
   const params = useParams();
   const tabId = params.id as string;
   
   const [tab, setTab] = useState<any>(null);
-  const [orderCart, setOrderCart] = useState<any[]>([]);
+  const [orderCart, setOrderCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
@@ -80,7 +89,7 @@ export default function AddOrderPage() {
         c.id === item.id ? {...c, quantity: c.quantity + 1} : c
       ));
     } else {
-      setOrderCart([...orderCart, {...item, quantity: 1}]);
+      setOrderCart([...orderCart, {...item, quantity: 1, type: 'catalog'}]);
     }
   };
 
@@ -111,7 +120,6 @@ export default function AddOrderPage() {
         total: item.price * item.quantity
       }));
 
-      // ⭐ KEY CHANGE: Mark as staff-initiated
       const { error } = await supabase
         .from('tab_orders')
         .insert({
@@ -119,7 +127,7 @@ export default function AddOrderPage() {
           items: orderItems,
           total: cartTotal,
           status: 'pending',
-          initiated_by: 'staff'  // 👈 This is the critical change
+          initiated_by: 'staff'
         });
 
       if (error) throw error;
@@ -134,6 +142,31 @@ export default function AddOrderPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const addItemsToParentCart = () => {
+    // Add all items to parent window cart
+    orderCart.forEach(item => {
+      const cartItem = {
+        id: `${Date.now()}_${item.id}_${Math.random().toString(36).substr(2, 9)}`,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        type: 'catalog' as const
+      };
+
+      if (window.opener && window.opener.addToCart) {
+        window.opener.addToCart(cartItem);
+      } else {
+        // Fallback: store in sessionStorage
+        const cartItems = JSON.parse(sessionStorage.getItem('tab_cart_items') || '[]');
+        cartItems.push(cartItem);
+        sessionStorage.setItem('tab_cart_items', JSON.stringify(cartItems));
+      }
+    });
+
+    alert(`✅ ${orderCart.length} items added to cart!`);
+    router.push(`/tabs/${tabId}`);
   };
 
   if (loading) {
@@ -298,14 +331,23 @@ export default function AddOrderPage() {
               <p className="text-sm text-gray-600">Total</p>
               <p className="text-2xl font-bold text-orange-600">{formatCurrency(cartTotal)}</p>
             </div>
-            <button
-              onClick={handleConfirmOrder}
-              disabled={submitting}
-              className="bg-orange-500 text-white px-8 py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <CheckCircle size={20} />
-              {submitting ? 'Submitting...' : 'Send to Customer'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={addItemsToParentCart}
+                className="bg-gray-500 text-white px-4 py-4 rounded-xl font-semibold hover:bg-gray-600 flex items-center gap-2"
+              >
+                <Plus size={20} />
+                Add to Tab
+              </button>
+              <button
+                onClick={handleConfirmOrder}
+                disabled={submitting}
+                className="bg-orange-500 text-white px-6 py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <CheckCircle size={20} />
+                {submitting ? 'Submitting...' : 'Send Order'}
+              </button>
+            </div>
           </div>
         </div>
       )}
