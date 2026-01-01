@@ -3,6 +3,7 @@ import './globals.css';
 import { BarProvider } from '@/contexts/page';
 import { ToastProvider } from '@/components/ui/Toast';
 import PWAInstall from '@/components/PWAInstall';
+import OnlineStatus from '@/components/OnlineStatus';
 
 export const dynamic = 'force-dynamic';
 
@@ -181,6 +182,7 @@ export default function RootLayout({
         <ToastProvider>
           <BarProvider>
             <PWAInstall />
+            <OnlineStatus />
             {children}
           </BarProvider>
         </ToastProvider>

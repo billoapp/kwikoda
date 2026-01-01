@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';  // ← Make sure this line exists
 import { ToastProvider } from '@/components/ui/Toast';
 import PWAInstall from '@/components/PWAInstall';
+import OnlineStatus from '@/components/OnlineStatus';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body>
         <ToastProvider>
           <PWAInstall />
+          <OnlineStatus />
           {children}
         </ToastProvider>
       </body>
