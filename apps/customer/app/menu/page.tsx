@@ -5,6 +5,8 @@ import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, U
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 import { useToast } from '@/components/ui/Toast';
+import { useVibrate } from '@/hooks/useVibrate';
+import { useSound } from '@/hooks/useSound';
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -56,6 +58,8 @@ interface Tab {
 export default function MenuPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { buzz } = useVibrate();
+  const playAcceptanceSound = useSound('/sounds/acceptance.mp3');
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [tab, setTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,7 +174,11 @@ export default function MenuPage() {
             // Mark this order as processed to avoid duplicate notifications
             setProcessedOrders(prev => new Set([...prev, payload.new.id]));
             
-            console.log('🔔 Showing acceptance modal...');
+            console.log('🔔 Showing acceptance modal with notifications...');
+            
+            // Trigger vibration and sound
+            buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
+            playAcceptanceSound(); // Play acceptance sound
             
             // Show modal instead of toast
             setAcceptanceModal({
@@ -741,11 +749,14 @@ export default function MenuPage() {
             {/* DEBUG: Test modal button */}
             <button 
               onClick={() => {
-                console.log('🧪 Testing acceptance modal');
+                console.log('🧪 Testing acceptance modal with notifications');
+                // Trigger vibration and sound for testing
+                buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
+                playAcceptanceSound(); // Play acceptance sound
                 setAcceptanceModal({
                   show: true,
                   orderTotal: '500', // Pass string number, not formatted
-                  message: 'This is a test to verify the modal system works'
+                  message: 'This is a test to verify the modal system works with vibration and sound'
                 });
               }}
               className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
