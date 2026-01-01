@@ -656,7 +656,7 @@ export default function MenuPage() {
   const parallaxOffset = scrollY * 0.5;
   
   // ✅ FIXED: Use database order_number directly, no client-side numbering
-  const lastOrder = orders[0]; // Most recent order (already sorted desc)
+  const lastOrder = orders.filter(order => order.status !== 'cancelled')[0]; // Most recent non-cancelled order
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';
   const lastOrderTime = lastOrder ? timeAgo(lastOrder.created_at) : '';
 

@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/components/ui/Toast';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -29,6 +30,7 @@ export default function TabDetailPage() {
   const router = useRouter();
   const params = useParams();
   const tabId = params.id as string;
+  const { showToast } = useToast();
   
   const [tab, setTab] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -137,7 +139,11 @@ export default function TabDetailPage() {
         }, 
         (payload) => {
           if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
-            alert('⚠️ Tab was automatically closed!');
+            showToast({
+              type: 'warning',
+              title: 'Tab Closed',
+              message: 'This tab was automatically closed'
+            });
           }
           
           loadTabData();
@@ -208,7 +214,11 @@ export default function TabDetailPage() {
 
     } catch (error) {
       console.error('❌ Error loading tab:', error);
-      alert('Failed to load tab. Redirecting...');
+      showToast({
+        type: 'error',
+        title: 'Failed to Load Tab',
+        message: 'Redirecting to dashboard...'
+      });
       router.push('/');
     } finally {
       setLoading(false);
@@ -294,7 +304,11 @@ export default function TabDetailPage() {
 
   const submitCartOrder = async () => {
     if (cartItems.length === 0) {
-      alert('Please add items to cart first');
+      showToast({
+        type: 'warning',
+        title: 'Cart Empty',
+        message: 'Please add items to cart first'
+      });
       return;
     }
 
@@ -323,13 +337,21 @@ export default function TabDetailPage() {
 
       if (error) throw error;
 
-      alert('✅ Order sent to customer for approval!');
+      showToast({
+        type: 'success',
+        title: 'Order Sent',
+        message: 'Order sent to customer for approval!'
+      });
       clearCart();
       loadTabData();
       
     } catch (error: any) {
       console.error('Error creating order:', error);
-      alert(`Failed to create order: ${error.message}`);
+      showToast({
+        type: 'error',
+        title: 'Failed to Create Order',
+        message: error.message
+      });
     } finally {
       setSubmittingOrder(false);
     }
@@ -337,7 +359,11 @@ export default function TabDetailPage() {
 
   const handleMarkServed = async (orderId: string, initiatedBy: string) => {
     if (initiatedBy === 'staff') {
-      alert('⚠️ Cannot approve staff-initiated orders. Customer must approve.');
+      showToast({
+        type: 'warning',
+        title: 'Cannot Approve',
+        message: 'Customer must approve staff-initiated orders'
+      });
       return;
     }
 
@@ -356,7 +382,11 @@ export default function TabDetailPage() {
       
     } catch (error) {
       console.error('Error marking served:', error);
-      alert('Failed to mark order as served');
+      showToast({
+        type: 'error',
+        title: 'Failed to Mark Served',
+        message: 'Please try again'
+      });
     }
   };
 
@@ -381,7 +411,11 @@ export default function TabDetailPage() {
       
     } catch (error) {
       console.error('Error adding payment:', error);
-      alert('Failed to add payment');
+      showToast({
+        type: 'error',
+        title: 'Failed to Add Payment',
+        message: 'Please try again'
+      });
     }
   };
 
@@ -404,12 +438,20 @@ export default function TabDetailPage() {
 
         if (error) throw error;
 
-        alert('Tab pushed to overdue successfully');
+        showToast({
+          type: 'success',
+          title: 'Tab Pushed to Overdue',
+          message: 'Successfully moved to bad debt'
+        });
         router.push('/');
         
       } catch (error) {
         console.error('Error pushing to overdue:', error);
-        alert('Failed to push to overdue');
+        showToast({
+          type: 'error',
+          title: 'Failed to Push to Overdue',
+          message: 'Please try again'
+        });
       }
       return;
     }
@@ -426,12 +468,20 @@ export default function TabDetailPage() {
 
       if (error) throw error;
 
-      alert('Tab closed successfully');
+      showToast({
+        type: 'success',
+        title: 'Tab Closed',
+        message: 'Successfully closed tab'
+      });
       router.push('/');
       
     } catch (error) {
       console.error('Error closing tab:', error);
-      alert('Failed to close tab');
+      showToast({
+        type: 'error',
+        title: 'Failed to Close Tab',
+        message: 'Please try again'
+      });
     }
   };
 

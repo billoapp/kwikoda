@@ -6,15 +6,18 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ShoppingCart, Clock, CheckCircle, CreditCard, RefreshCw, User, UserCog, ThumbsUp, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency, formatDigitalTime } from '@/lib/formatUtils';
+import { useToast } from '@/components/ui/Toast';
 
 export default function TabPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [tab, setTab] = useState<any>(null);
   const [barName, setBarName] = useState('');
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
+  const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadTabData();
@@ -33,13 +36,32 @@ export default function TabPage() {
       .channel(`tab_orders_${tabId}`)
       .on('postgres_changes', 
         { 
-          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+          event: 'UPDATE', // Listen to updates (when staff accepts orders)
           schema: 'public', 
           table: 'tab_orders',
           filter: `tab_id=eq.${tabId}`
         }, 
         (payload) => {
           console.log('Real-time order update:', payload);
+          
+          // Check if staff accepted an order
+          if (payload.new?.status === 'confirmed' && 
+              payload.old?.status === 'pending' && 
+              payload.new?.initiated_by === 'customer' &&
+              !processedOrders.has(payload.new.id)) {
+            
+            // Mark this order as processed to avoid duplicate notifications
+            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+            
+            // Show persistent toast notification
+            showToast({
+              type: 'success',
+              title: 'Order Accepted! 🎉',
+              message: `Your order of ${formatCurrency(payload.new.total)} has been accepted and is being prepared`,
+              duration: 0 // Persistent - won't auto-dismiss
+            });
+          }
+          
           loadTabData(); // Refresh data when any order changes
         }
       )
@@ -48,7 +70,35 @@ export default function TabPage() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [processedOrders]);
+
+  // Check for newly accepted orders on component mount
+  useEffect(() => {
+    if (!orders.length) return;
+    
+    // Find orders that were recently accepted by staff (within last 30 seconds)
+    const recentlyAccepted = orders.filter(order => {
+      if (order.status !== 'confirmed' || order.initiated_by !== 'customer') return false;
+      
+      const orderTime = new Date(order.updated_at || order.created_at).getTime();
+      const now = Date.now();
+      const timeDiff = (now - orderTime) / 1000; // seconds
+      
+      return timeDiff <= 30 && !processedOrders.has(order.id);
+    });
+
+    // Show notification for each recently accepted order
+    recentlyAccepted.forEach(order => {
+      setProcessedOrders(prev => new Set([...prev, order.id]));
+      
+      showToast({
+        type: 'success',
+        title: 'Order Accepted! 🎉',
+        message: `Your order of ${formatCurrency(order.total)} has been accepted and is being prepared`,
+        duration: 0 // Persistent - won't auto-dismiss
+      });
+    });
+  }, [orders]);
 
   const loadTabData = async () => {
     setLoading(true);
@@ -132,7 +182,11 @@ export default function TabPage() {
       
     } catch (error) {
       console.error('Error approving order:', error);
-      alert('Failed to approve order. Please try again.');
+      showToast({
+        type: 'error',
+        title: 'Failed to Approve Order',
+        message: 'Please try again'
+      });
     } finally {
       setApprovingOrder(null);
     }
@@ -158,7 +212,11 @@ export default function TabPage() {
       
     } catch (error) {
       console.error('Error rejecting order:', error);
-      alert('Failed to reject order. Please try again.');
+      showToast({
+        type: 'error',
+        title: 'Failed to Reject Order',
+        message: 'Please try again'
+      });
     } finally {
       setApprovingOrder(null);
     }
