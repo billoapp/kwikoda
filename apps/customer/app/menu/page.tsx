@@ -325,6 +325,13 @@ export default function MenuPage() {
           if (!error && messages) {
             setTelegramMessages(messages);
             
+            // Calculate and update unread messages count
+            const unreadCount = messages.filter((msg: any) => 
+              msg.initiated_by === 'staff' && 
+              msg.status !== 'completed'
+            ).length;
+            setUnreadMessagesCount(unreadCount);
+            
             // Show notification for new messages (when staff responds)
             if (payload.new?.initiated_by === 'staff' && 
                 payload.eventType === 'INSERT') {
