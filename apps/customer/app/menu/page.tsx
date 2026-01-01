@@ -74,7 +74,7 @@ export default function MenuPage() {
   const [menuExpanded, setMenuExpanded] = useState(true);
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
   const [scrollY, setScrollY] = useState(0);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(Date.now()); // Add this state for real-time updates
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
   const loadAttempted = useRef(false);
 
@@ -93,6 +93,17 @@ export default function MenuPage() {
   const menuRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const paymentRef = useRef<HTMLDivElement>(null);
+
+  // Timer for real-time updates - FIX: Add this useEffect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update every second
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
 
   // Handle scroll for parallax effect
   useEffect(() => {
@@ -590,9 +601,10 @@ export default function MenuPage() {
   const balance = tabTotal - paidTotal;
   const pendingStaffOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'staff').length;
 
+  // FIXED: Use currentTime state instead of new Date() for real-time updates
   const timeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    const seconds = Math.floor((currentTime - date.getTime()) / 1000);
     if (seconds < 60) return 'Just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
@@ -615,7 +627,7 @@ export default function MenuPage() {
       orderTime = new Date(oldestPendingOrder.created_at).getTime();
       sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
     }
-    const now = Date.now();
+    const now = currentTime; // Use currentTime state instead of Date.now()
     const elapsedSeconds = Math.floor((now - orderTime) / 1000);
     return {
       elapsed: elapsedSeconds,
