@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X } from 'lucide-react';
+import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
@@ -39,6 +39,12 @@ export default function TabDetailPage() {
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
+  // Telegram message state
+  const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [submittingOrder, setSubmittingOrder] = useState(false);
@@ -69,6 +75,7 @@ export default function TabDetailPage() {
   useEffect(() => {
     loadTabData();
     loadCartFromSession();
+    loadTelegramMessages();
   }, [tabId]);
 
   // Expose addToCart to child windows
@@ -129,6 +136,24 @@ export default function TabDetailPage() {
       )
       .subscribe();
 
+    // Subscribe to telegram messages
+    const telegramSubscription = supabase
+      .channel(`tab-telegram-detail-${tabId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tab_telegram_messages',
+          filter: `tab_id=eq.${tabId}` 
+        },
+        (payload) => {
+          console.log('📨 Telegram update in detail page:', payload.eventType);
+          loadTelegramMessages();
+        }
+      )
+      .subscribe();
+
     const tabSubscription = supabase
       .channel(`tab_status_${tabId}`)
       .on('postgres_changes', 
@@ -156,6 +181,7 @@ export default function TabDetailPage() {
       orderSubscription.unsubscribe();
       paymentSubscription.unsubscribe();
       tabSubscription.unsubscribe();
+      telegramSubscription.unsubscribe();
     };
   }, [tabId]);
 
@@ -231,7 +257,7 @@ export default function TabDetailPage() {
     if (stored) {
       try {
         const items = JSON.parse(stored);
-        console.log('📥 Loading items from session storage:', items);
+        console.log('🔥 Loading items from session storage:', items);
         
         // Instead of replacing, APPEND to existing cart
         setCartItems(prev => {
@@ -495,6 +521,193 @@ export default function TabDetailPage() {
     return ordersTotal - paymentsTotal;
   };
 
+  const loadTelegramMessages = async () => {
+    if (!tabId) {
+      console.log('❌ No tab ID for loading messages');
+      return;
+    }
+    
+    console.log('🔥 Loading telegram messages for tab:', tabId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('tab_telegram_messages')
+        .select('*')
+        .eq('tab_id', tabId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Error loading messages:', error);
+        return;
+      }
+      
+      console.log(`✅ Loaded ${data?.length || 0} messages`);
+      setTelegramMessages(data || []);
+      
+    } catch (error) {
+      console.error('❌ Exception loading messages:', error);
+    }
+  };
+
+  const sendTelegramResponse = async () => {
+    if (!messageInput.trim() || !tabId) {
+      console.error('❌ No message or tab ID');
+      return;
+    }
+    
+    setSendingMessage(true);
+    
+    try {
+      console.log('📤 Sending staff response:', {
+        tabId,
+        message: messageInput.trim(),
+        length: messageInput.trim().length
+      });
+      
+      const { data, error } = await (supabase as any)
+        .from('tab_telegram_messages')
+        .insert({
+          tab_id: tabId,
+          message: messageInput.trim(),
+          order_type: 'telegram',
+          status: 'acknowledged',
+          message_metadata: {
+            type: 'staff_response',
+            urgency: 'normal',
+            character_count: messageInput.trim().length,
+            platform: 'staff-web'
+          },
+          customer_notified: true,
+          customer_notified_at: new Date().toISOString(),
+          staff_acknowledged_at: new Date().toISOString(),
+          initiated_by: 'staff'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Failed to send response:', error);
+        showToast({
+          type: 'error',
+          title: 'Failed to Send Response',
+          message: 'Please try again'
+        });
+      } else {
+        console.log('✅ Response sent:', data);
+        setMessageInput('');
+        showToast({
+          type: 'success',
+          title: 'Response Sent',
+          message: 'Your response has been sent to the customer'
+        });
+        
+        // Refresh messages
+        await loadTelegramMessages();
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error sending response:', error);
+      showToast({
+        type: 'error',
+        title: 'Failed to Send Response',
+        message: 'Please try again'
+      });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const acknowledgeTelegramMessage = async (messageId: string) => {
+    try {
+      console.log('👍 Acknowledging telegram message:', messageId);
+      
+      const { data, error } = await (supabase as any)
+        .from('tab_telegram_messages')
+        .update({
+          status: 'acknowledged',
+          staff_acknowledged_at: new Date().toISOString(),
+          customer_notified: true,
+          customer_notified_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('status', 'pending')
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Failed to acknowledge message:', error);
+        showToast({
+          type: 'error',
+          title: 'Failed to Acknowledge',
+          message: 'Please try again'
+        });
+      } else {
+        console.log('✅ Message acknowledged:', data);
+        showToast({
+          type: 'success',
+          title: 'Message Acknowledged',
+          message: 'Message has been acknowledged'
+        });
+        
+        // Refresh messages
+        await loadTelegramMessages();
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error acknowledging message:', error);
+      showToast({
+        type: 'error',
+        title: 'Failed to Acknowledge',
+        message: 'Please try again'
+      });
+    }
+  };
+
+  const completeTelegramMessage = async (messageId: string) => {
+    try {
+      console.log('✅ Completing telegram message:', messageId);
+      
+      const { data, error } = await (supabase as any)
+        .from('tab_telegram_messages')
+        .update({
+          status: 'completed',
+          customer_notified: true,
+          customer_notified_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .in('status', ['pending', 'acknowledged'])
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ Failed to complete message:', error);
+        showToast({
+          type: 'error',
+          title: 'Failed to Complete',
+          message: 'Please try again'
+        });
+      } else {
+        console.log('✅ Message completed:', data);
+        showToast({
+          type: 'success',
+          title: 'Message Completed',
+          message: 'Request has been marked as completed'
+        });
+        
+        // Refresh messages
+        await loadTelegramMessages();
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error completing message:', error);
+      showToast({
+        type: 'error',
+        title: 'Failed to Complete',
+        message: 'Please try again'
+      });
+    }
+  };
+
   const timeAgo = (dateStr: string, isPayment = false) => {
     const date = new Date(dateStr);
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -679,6 +892,137 @@ export default function TabDetailPage() {
             </button>
           </div>
 
+          {/* Telegram Messaging Section */}
+          <div className="mb-6 bg-white rounded-xl shadow-lg border border-gray-200">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageCircle size={20} className="text-white" />
+                <h2 className="text-sm font-semibold text-white">Customer Messages</h2>
+              </div>
+              <button
+                onClick={() => setShowMessageModal(true)}
+                className="p-2 text-white bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+
+            {/* Recent Messages */}
+            <div className="p-4">
+              {telegramMessages.length > 0 ? (
+                <div className="space-y-3">
+                  {telegramMessages.map((msg) => (
+                    <div key={msg.id} className={`p-4 rounded-lg border ${
+                      msg.status === 'pending' ? 'bg-yellow-50 border-yellow-100' :
+                      msg.status === 'acknowledged' ? 'bg-blue-50 border-blue-100' :
+                      msg.status === 'completed' ? 'bg-green-50 border-green-100' :
+                      'bg-gray-50 border-gray-100'
+                    }`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-800">{msg.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {kenyaTimeAgo(msg.created_at)} • 
+                            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                              msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                              msg.status === 'acknowledged' ? 'bg-blue-100 text-blue-700' :
+                              msg.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {msg.status}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => acknowledgeTelegramMessage(msg.id)}
+                            className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                            disabled={msg.status !== 'pending'}
+                          >
+                            Ack
+                          </button>
+                          <button
+                            onClick={() => completeTelegramMessage(msg.id)}
+                            className="p-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                            disabled={msg.status === 'completed'}
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <MessageCircle size={32} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No messages yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Message Input Modal */}
+          {showMessageModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={24} className="text-blue-500" />
+                    <h2 className="text-xl font-bold text-gray-900">Send Message</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowMessageModal(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X size={24} className="text-gray-500" />
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <textarea
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder="Type your message..."
+                    className="w-full h-32 p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                    maxLength={500}
+                  />
+                  <div className="text-right mt-1">
+                    <span className={`text-xs ${messageInput.length > 450 ? 'text-red-500' : 'text-gray-400'}`}>
+                      {messageInput.length}/500
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowMessageModal(false)}
+                    className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={sendTelegramResponse}
+                    disabled={!messageInput.trim() || sendingMessage}
+                    className="flex-1 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {sendingMessage ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={16} />
+                        Send
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Cart Section */}
           {cartItems.length > 0 && (
             <div className="mb-6 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -749,8 +1093,17 @@ export default function TabDetailPage() {
                     disabled={submittingOrder}
                     className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    <CheckCircle size={20} />
-                    {submittingOrder ? 'Sending...' : 'Send to Customer'}
+                    {submittingOrder ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        Send Order
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -759,11 +1112,11 @@ export default function TabDetailPage() {
 
           {/* Orders Section */}
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-3">Recent Orders</h2>
+            <h2 className="text-lg font-bold text-gray-800 mb-3">Orders</h2>
             
             {(!tab.orders || tab.orders.length === 0) ? (
               <div className="bg-white rounded-xl p-6 text-center text-gray-500">
-                <Clock size={32} className="mx-auto mb-2 opacity-30" />
+                <ShoppingCart size={32} className="mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No orders yet</p>
               </div>
             ) : (

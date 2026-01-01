@@ -308,7 +308,11 @@ export default function MenuPage() {
           filter: `tab_id=eq.${tab.id}` 
         },
         async (payload: any) => {
-          console.log('📩 Telegram message update:', payload);
+          console.log('📩 Telegram message real-time update:', {
+            event: payload.eventType,
+            new: payload.new,
+            old: payload.old
+          });
           
           // Refresh messages
           const { data: messages, error } = await supabase
@@ -320,12 +324,31 @@ export default function MenuPage() {
           if (!error && messages) {
             setTelegramMessages(messages);
             
-            // Show notification for new staff acknowledgments
+            // Show notification for new messages (when staff responds)
+            if (payload.new?.initiated_by === 'staff' && 
+                payload.eventType === 'INSERT') {
+              
+              buzz([200]);
+              playAcceptanceSound();
+              
+              setNewMessageAlert({
+                type: 'acknowledged',
+                message: 'Staff responded to your message',
+                timestamp: new Date().toISOString(),
+                messageContent: payload.new.message
+              });
+              
+              setTimeout(() => {
+                setNewMessageAlert(null);
+              }, 5000);
+            }
+            
+            // Show notification for staff acknowledgments
             if (payload.new?.status === 'acknowledged' && 
                 payload.old?.status === 'pending' &&
                 payload.new?.staff_acknowledged_at) {
               
-              buzz([200]);
+              buzz([200, 100, 200]);
               playAcceptanceSound();
               
               setNewMessageAlert({
@@ -725,39 +748,89 @@ export default function MenuPage() {
   };
 
   const sendTelegramMessage = async () => {
-    if (!messageInput.trim() || !tab) return;
+    if (!messageInput.trim() || !tab) {
+      console.error('❌ No message or tab');
+      return;
+    }
     
     setSendingMessage(true);
     
     try {
-      const telegram = telegramMessageQueries(supabase);
+      console.log('📤 Sending telegram message:', {
+        tabId: tab.id,
+        message: messageInput.trim(),
+        length: messageInput.trim().length
+      });
       
-      const { error } = await telegram.createMessage(
-        tab.id,
-        messageInput.trim(),
-        'customer',
+      // Use the database function first
+      const { data, error: functionError } = await (supabase as any).rpc(
+        'create_telegram_message',
         {
-          type: 'general',
-          urgency: 'normal',
-          character_count: messageInput.trim().length
+          p_tab_id: tab.id,
+          p_message: messageInput.trim(),
+          p_initiated_by: 'customer',
+          p_metadata: {
+            type: 'general',
+            urgency: 'normal',
+            character_count: messageInput.trim().length,
+            platform: 'customer-web'
+          }
         }
       );
       
-      if (error) throw error;
+      // If function fails, try direct insert
+      if (functionError) {
+        console.warn('⚠️ Function failed, trying direct insert:', functionError);
+        
+        const { data: insertData, error: insertError } = await (supabase as any)
+          .from('tab_telegram_messages')
+          .insert({
+            tab_id: tab.id,
+            message: messageInput.trim(),
+            order_type: 'telegram',
+            status: 'pending',
+            message_metadata: {
+              type: 'general',
+              urgency: 'normal',
+              character_count: messageInput.trim().length,
+              platform: 'customer-web'
+            },
+            customer_notified: true,
+            customer_notified_at: new Date().toISOString(),
+            initiated_by: 'customer'
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('❌ Direct insert failed:', insertError);
+          throw insertError;
+        }
+        
+        console.log('✅ Message sent via direct insert:', insertData);
+      } else {
+        console.log('✅ Message sent via function:', data);
+      }
       
+      // Success - reset form and show confirmation
       setMessageInput('');
       setShowMessageModal(false);
       setMessageSentModal(true);
       
+      // Vibrate for confirmation
       buzz([100]);
       
+      // Auto-hide confirmation after 3 seconds
       setTimeout(() => {
         setMessageSentModal(false);
       }, 3000);
       
-    } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Failed to send message. Please try again.');
+      // Refresh messages immediately
+      await loadTelegramMessages();
+      
+    } catch (error: any) {
+      console.error('❌ Error sending message:', error);
+      alert(`Failed to send message: ${error.message || 'Please try again.'}`);
     } finally {
       setSendingMessage(false);
     }
@@ -881,6 +954,58 @@ export default function MenuPage() {
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
             <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
+            {/* DEBUG: Test message button */}
+            <button 
+              onClick={async () => {
+                console.log('🧪 Testing message system');
+                
+                // Send a test message
+                const testMessage = `Test message at ${new Date().toLocaleTimeString()}`;
+                
+                try {
+                  const { data, error } = await (supabase as any)
+                    .from('tab_telegram_messages')
+                    .insert({
+                      tab_id: tab?.id,
+                      message: testMessage,
+                      order_type: 'telegram',
+                      status: 'pending',
+                      message_metadata: { type: 'test', debug: true },
+                      customer_notified: true,
+                      customer_notified_at: new Date().toISOString(),
+                      initiated_by: 'customer'
+                    })
+                    .select();
+                  
+                  if (error) {
+                    console.error('❌ Test message failed:', error);
+                    alert('Test failed: ' + error.message);
+                  } else {
+                    console.log('✅ Test message sent:', data);
+                    alert('Test message sent! Check staff app.');
+                    
+                    // Refresh messages
+                    await loadTelegramMessages();
+                  }
+                } catch (error) {
+                  console.error('❌ Test exception:', error);
+                }
+              }}
+              className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
+            >
+              Test Msg
+            </button>
+            {/* DEBUG: Refresh messages button */}
+            <button 
+              onClick={async () => {
+                console.log('🔄 Manually refreshing messages');
+                await loadTelegramMessages();
+                console.log('✅ Messages refreshed:', telegramMessages);
+              }}
+              className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
+            >
+              Refresh Msgs
+            </button>
             {/* DEBUG: Test modal button */}
             <button 
               onClick={() => {
