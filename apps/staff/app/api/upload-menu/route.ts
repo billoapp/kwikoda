@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     console.log(' Upload API called');
     
     // Check environment variables
-    const supabaseUrl = process.env.PUBLIC_SUPABASE_URL;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SECRET_KEY;
     
     console.log(' Environment check:', { 
