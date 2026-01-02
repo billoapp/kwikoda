@@ -34,13 +34,12 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Also create admin client for storage operations
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
-    });
+    // For storage operations, use direct HTTP requests with the new API key format
+    const storageHeaders = {
+      'Authorization': `Bearer ${supabaseKey}`,
+      'apikey': supabaseKey,
+      'Content-Type': 'application/json'
+    };
     
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -113,16 +112,22 @@ export async function POST(request: NextRequest) {
 
     console.log('📁 Uploading to:', filePath);
 
-    // Check if bucket exists first
-    const { data: buckets, error: bucketError } = await supabaseAdmin.storage.listBuckets();
-    if (bucketError) {
-      console.error('❌ Error listing buckets:', bucketError);
+    // Check if bucket exists first using direct HTTP request
+    const bucketListUrl = `${supabaseUrl}/storage/v1/bucket`;
+    const bucketResponse = await fetch(bucketListUrl, {
+      headers: storageHeaders
+    });
+    
+    if (!bucketResponse.ok) {
+      const errorText = await bucketResponse.text();
+      console.error('❌ Error listing buckets:', errorText);
       return NextResponse.json(
-        { error: 'Storage access error: ' + bucketError.message },
-        { status: 500 }
+        { error: 'Storage access error: ' + errorText },
+        { status: bucketResponse.status }
       );
     }
     
+    const buckets = await bucketResponse.json();
     const menuBucket = buckets?.find((b: any) => b.name === 'menu-files');
     if (!menuBucket) {
       console.error('❌ menu-files bucket does not exist. Available buckets:', buckets?.map((b: any) => b.name));
@@ -134,33 +139,37 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Bucket exists');
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('menu-files')
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        cacheControl: '3600',
-        upsert: true
-      });
+    // Upload to Supabase Storage using direct HTTP request
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/menu-files/${filePath}`;
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', new Blob([buffer], { type: file.type }), fileName);
 
-    if (uploadError) {
-      console.error('❌ Upload error:', uploadError);
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+      body: uploadFormData
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('❌ Upload error:', errorText);
       return NextResponse.json(
-        { error: 'Failed to upload file: ' + uploadError.message },
-        { status: 500 }
+        { error: 'Failed to upload file: ' + errorText },
+        { status: uploadResponse.status }
       );
     }
 
+    const uploadData = await uploadResponse.json();
     console.log('✅ Upload successful:', uploadData);
 
     // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from('menu-files')
-      .getPublicUrl(filePath);
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/menu-files/${filePath}`;
+    console.log('✅ Public URL:', publicUrl);
 
-    console.log('✅ Public URL:', urlData.publicUrl);
-
-    if (!urlData?.publicUrl) {
+    if (!publicUrl) {
       console.error('❌ Failed to get public URL');
       return NextResponse.json(
         { error: 'Failed to get public URL' },
@@ -172,7 +181,7 @@ export async function POST(request: NextRequest) {
     const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
 
     return NextResponse.json({
-      url: urlData.publicUrl,
+      url: publicUrl,
       path: filePath,
       fileType: fileType,
       mimeType: file.type
