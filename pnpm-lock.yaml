@@ -12,7 +12,7 @@ importers:
         specifier: ^1.17.2
         version: 1.17.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@supabase/supabase-js':
-        specifier: ^2.39.0
+        specifier: ^2.45.0
         version: 2.89.0
       '@vercel/node':
         specifier: ^3.0.0
