@@ -1,13 +1,14 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle, FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 import { useVibrate } from '@/hooks/useVibrate';
 import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
+import PDFViewer from '../../../../components/PDFViewer';
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -98,6 +99,12 @@ export default function MenuPage() {
   const [newMessageAlert, setNewMessageAlert] = useState<any>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   
+  // Static menu states
+  const [menuType, setMenuType] = useState<'interactive' | 'static'>('interactive');
+  const [staticMenuUrl, setStaticMenuUrl] = useState<string | null>(null);
+  const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | null>(null);
+  const [showStaticMenu, setShowStaticMenu] = useState(false);
+
   const loadAttempted = useRef(false);
 
   // Helper function to get display image with category fallback
@@ -545,20 +552,14 @@ export default function MenuPage() {
           .select('*')
           .eq('tab_id', currentTab.id)
           .order('created_at', { ascending: false });
-        if (!paymentsError) setPayments(paymentsData || []);
-      } catch (error) {
-        console.error('Error loading payments:', error);
+      
+      // Auto-show static menu if menu type is static
+      if ((barData as any).menu_type === 'static' && (barData as any).static_menu_url) {
+        setShowStaticMenu(true);
       }
-    } catch (error) {
-      console.error('Error loading tab:', error);
-    } finally {
-      setLoading(false);
     }
-    getPendingOrderTime();
-  };
-
-  const handleCloseTab = async () => {
-    try {
+  } catch (error) {
+    console.error('Error loading bar settings:', error);
       if (!tab) {
         console.error('No tab to close');
         return;
@@ -1155,7 +1156,52 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Menu Section */}
+      {/* Static Menu Viewer (PDF or Image) */}
+      {showStaticMenu && staticMenuUrl && (
+        <div className="fixed inset-0 z-50 bg-black">
+          <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 flex items-center justify-between z-10">
+            <div>
+              <h1 className="text-lg font-bold">{displayName}</h1>
+              <p className="text-sm text-orange-100">{barName} Menu</p>
+            </div>
+            <button
+              onClick={() => setShowStaticMenu(false)}
+              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          <div className="pt-16 h-full">
+            {staticMenuType === 'pdf' ? (
+              <PDFViewer pdfUrl={staticMenuUrl} />
+            ) : (
+              // Image viewer with zoom
+              <div className="w-full h-full overflow-auto bg-gray-900 flex items-center justify-center">
+                <img 
+                  src={staticMenuUrl} 
+                  alt="Menu" 
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Menu Type Toggle */}
+      {staticMenuUrl && menuType === 'static' && !showStaticMenu && (
+        <div className="bg-white border-b border-gray-100 p-4">
+          <button
+            onClick={() => setShowStaticMenu(true)}
+            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-purple-700 flex items-center justify-center gap-2"
+          >
+            <FileText size={20} />
+            View Menu {staticMenuType === 'pdf' ? '(PDF)' : '(Image)'}
+          </button>
+        </div>
+      )}
+
+      {menuType === 'interactive' && (
       <div ref={menuRef} className="bg-white relative overflow-hidden">
         <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Menu</h2>
@@ -1226,6 +1272,8 @@ export default function MenuPage() {
           </div>
         </div>
       </div>
+      )}
+      )}
 
       {/* Orders Section */}
       <div ref={ordersRef} className="bg-gray-50 p-4">

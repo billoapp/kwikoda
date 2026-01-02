@@ -13,6 +13,13 @@ import {
   Edit2,
   Save,
   Upload,
+  FileText,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import InteractiveImageCropper from '@/components/InteractiveImageCropper';
@@ -78,6 +85,13 @@ interface CustomProduct {
   updated_at?: string;
 }
 
+interface BarSettings {
+  id: string;
+  menu_type: 'interactive' | 'static';
+  static_menu_url: string | null;
+  static_menu_type: 'pdf' | 'image' | null;
+}
+
 export default function MenuManagementPage() {
   const router = useRouter();
   const [barId, setBarId] = useState<string | null>(null);
@@ -119,6 +133,14 @@ export default function MenuManagementPage() {
   // Cropper states
   const [showCropper, setShowCropper] = useState(false);
   const [currentImageField, setCurrentImageField] = useState<'new' | 'edit'>('new');
+
+  // Static menu states
+  const [barSettings, setBarSettings] = useState<BarSettings | null>(null);
+  const [menuUploadLoading, setMenuUploadLoading] = useState(false);
+  const [menuFile, setMenuFile] = useState<File | null>(null);
+  const [menuPreview, setMenuPreview] = useState<string | null>(null);
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
+  const [staticMenuCollapsed, setStaticMenuCollapsed] = useState(false);
 
   // Helper function to get display image with category fallback
   const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
@@ -194,6 +216,7 @@ export default function MenuManagementPage() {
       loadCatalogData();
       loadBarMenu();
       loadCustomProducts();
+      loadBarSettings();
     }
   }, [barId]);
 
@@ -280,6 +303,106 @@ export default function MenuManagementPage() {
       setCustomProducts(unpublished);
     } catch (error) {
       console.error('Error loading custom products:', error);
+    }
+  };
+
+  const loadBarSettings = async () => {
+    try {
+      if (!barId) return;
+      const { data, error } = await supabase
+        .from('bars')
+        .select('id, menu_type, static_menu_url, static_menu_type')
+        .eq('id', barId)
+        .single();
+
+      if (error) throw error;
+
+      setBarSettings(data);
+    } catch (error) {
+      console.error('Error loading bar settings:', error);
+    }
+  };
+
+  const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setMenuFile(file);
+      
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => setMenuPreview(e.target?.result as string);
+        reader.readAsDataURL(file);
+      } else {
+        setMenuPreview(null);
+      }
+    }
+  };
+
+  const handleMenuUpload = async () => {
+    if (!menuFile || !barId) {
+      alert('Please select a file to upload');
+      return;
+    }
+
+    setMenuUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', menuFile);
+      formData.append('barId', barId);
+
+      const response = await fetch('/api/upload-menu', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      const data = await response.json();
+
+      // Update bar settings
+      const { error: updateError } = await supabase
+        .from('bars')
+        .update({
+          static_menu_url: data.url,
+          static_menu_type: data.fileType,
+          menu_type: 'static',
+        })
+        .eq('id', barId);
+
+      if (updateError) throw updateError;
+
+      await loadBarSettings();
+      setMenuFile(null);
+      setMenuPreview(null);
+      alert('✅ Menu uploaded successfully!');
+    } catch (error: any) {
+      console.error('Error uploading menu:', error);
+      alert('Failed to upload menu: ' + error.message);
+    } finally {
+      setMenuUploadLoading(false);
+    }
+  };
+
+  const handleMenuTypeChange = async (type: 'interactive' | 'static') => {
+    if (!barId) return;
+
+    try {
+      const { error } = await supabase
+        .from('bars')
+        .update({ menu_type: type })
+        .eq('id', barId);
+
+      if (error) throw error;
+
+      await loadBarSettings();
+      alert(`✅ Switched to ${type} menu`);
+    } catch (error: any) {
+      console.error('Error changing menu type:', error);
+      alert('Failed to change menu type: ' + error.message);
     }
   };
 
@@ -1076,6 +1199,135 @@ export default function MenuManagementPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Static Menu Management */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <FileText size={20} className="text-purple-600" />
+                Static Menu (PDF/Image)
+              </h2>
+              <button
+                onClick={() => setStaticMenuCollapsed(!staticMenuCollapsed)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                {staticMenuCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+              </button>
+            </div>
+            
+            {!staticMenuCollapsed && (
+              <div className="space-y-4">
+                {/* Menu Type Toggle */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h3 className="font-semibold text-gray-800 mb-3">Menu Type</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleMenuTypeChange('interactive')}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        barSettings?.menu_type === 'interactive'
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <ShoppingCart size={20} className="mx-auto mb-2" />
+                      <p className="font-medium">Interactive</p>
+                      <p className="text-xs text-gray-500">Product-based ordering</p>
+                    </button>
+                    <button
+                      onClick={() => handleMenuTypeChange('static')}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        barSettings?.menu_type === 'static'
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <FileText size={20} className="mx-auto mb-2" />
+                      <p className="font-medium">Static</p>
+                      <p className="text-xs text-gray-500">PDF/Image menu</p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* PDF/Image Upload */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h3 className="font-semibold text-gray-800 mb-3">Upload Menu File</h3>
+                  
+                  {barSettings?.static_menu_url ? (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          {barSettings.static_menu_type === 'pdf' ? (
+                            <FileText size={16} className="text-green-600" />
+                          ) : (
+                            <ImageIcon size={16} className="text-green-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-green-800">
+                            Menu uploaded ({barSettings.static_menu_type?.toUpperCase()})
+                          </p>
+                          <p className="text-xs text-green-600">Customers can view this menu</p>
+                        </div>
+                      </div>
+                      
+                      {barSettings.static_menu_type === 'image' && (
+                        <img 
+                          src={barSettings.static_menu_url} 
+                          alt="Menu preview" 
+                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        No static menu uploaded. Upload a PDF or image to enable static menu mode.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select File (PDF or Image)
+                      </label>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
+                        onChange={handleMenuFileChange}
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Max 10MB. Supports PDF, JPEG, PNG, WebP
+                      </p>
+                    </div>
+
+                    {menuPreview && (
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                        <img 
+                          src={menuPreview} 
+                          alt="Menu preview" 
+                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
+                        />
+                      </div>
+                    )}
+
+                    {menuFile && (
+                      <button
+                        onClick={handleMenuUpload}
+                        disabled={menuUploadLoading}
+                        className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                      >
+                        <Upload size={20} />
+                        {menuUploadLoading ? 'Uploading...' : 'Upload Menu'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
