@@ -1,67 +1,40 @@
 // apps/staff/app/api/upload-menu/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+  console.error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY in env');
+  throw new Error('Missing required environment variables');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('📤 Upload API called');
-    
-    // Check environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY;
-    
-    console.log('🔍 Environment check:', { 
-      hasUrl: !!supabaseUrl, 
-      hasKey: !!supabaseKey,
-      keyPrefix: supabaseKey?.substring(0, 15) + '...',
-      keyLength: supabaseKey?.length,
-      urlPrefix: supabaseUrl?.substring(0, 20) + '...',
-      keyType: supabaseKey?.startsWith('eyJ') ? 'JWT (Legacy)' : supabaseKey?.startsWith('sb_') ? 'New Format' : 'Unknown'
-    });
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
+    if (request.method !== 'POST') {
+      return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
     }
 
-    // Initialize Supabase client inside the function
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
-    });
+    // Masked debug: show prefix of key we are using (do not log full key)
+    console.info('Using SUPABASE_SECRET_KEY prefix:', SUPABASE_SECRET_KEY ? SUPABASE_SECRET_KEY.slice(0, 8) : null);
 
-    // For storage operations, use direct HTTP requests with the new API key format
-    const storageHeaders = {
-      'Authorization': `Bearer ${supabaseKey}`,
-      'apikey': supabaseKey,
-      'Content-Type': 'application/json'
-    };
-    
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const barId = formData.get('barId') as string;
 
-    console.log('📦 Received data:', { file: file?.name, size: file?.size, type: file?.type, barId });
-
     if (!file) {
-      console.error('❌ No file provided');
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'No file provided (field name must be "file")' 
+      }, { status: 400 });
     }
 
     if (!barId) {
-      console.error('❌ No barId provided');
-      return NextResponse.json(
-        { error: 'No barId provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'No barId provided' 
+      }, { status: 400 });
     }
 
     // Validate file type - accept PDFs and images
@@ -74,29 +47,20 @@ export async function POST(request: NextRequest) {
     ];
     
     if (!allowedTypes.includes(file.type)) {
-      console.error('❌ Invalid file type:', file.type);
-      return NextResponse.json(
-        { error: 'File must be a PDF or image (JPEG, PNG, WebP)' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'File must be a PDF or image (JPEG, PNG, WebP)' 
+      }, { status: 400 });
     }
 
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      console.error('❌ File too large:', file.size);
-      return NextResponse.json(
-        { error: 'File size must be less than 10MB' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'File size must be less than 10MB' 
+      }, { status: 400 });
     }
 
-    console.log('✅ File validation passed');
-
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Determine file extension
+    // Determine destination path in bucket
+    const timestamp = Date.now();
     let extension = 'pdf';
     if (file.type.includes('jpeg') || file.type.includes('jpg')) {
       extension = 'jpg';
@@ -105,88 +69,53 @@ export async function POST(request: NextRequest) {
     } else if (file.type.includes('webp')) {
       extension = 'webp';
     }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileName = `menu_${barId}_${timestamp}.${extension}`;
-    const filePath = `menus/${barId}/${fileName}`;
-
-    console.log('📁 Uploading to:', filePath);
-
-    // Check if bucket exists first using direct HTTP request
-    const bucketListUrl = `${supabaseUrl}/storage/v1/bucket`;
-    const bucketResponse = await fetch(bucketListUrl, {
-      headers: storageHeaders
-    });
     
-    if (!bucketResponse.ok) {
-      const errorText = await bucketResponse.text();
-      console.error('❌ Error listing buckets:', errorText);
-      return NextResponse.json(
-        { error: 'Storage access error: ' + errorText },
-        { status: bucketResponse.status }
-      );
-    }
-    
-    const buckets = await bucketResponse.json();
-    const menuBucket = buckets?.find((b: any) => b.name === 'menu-files');
-    if (!menuBucket) {
-      console.error('❌ menu-files bucket does not exist. Available buckets:', buckets?.map((b: any) => b.name));
-      return NextResponse.json(
-        { error: 'Storage bucket not found. Please contact administrator.' },
-        { status: 500 }
-      );
-    }
+    const bucketPath = `menus/${barId}/menu_${barId}_${timestamp}.${extension}`;
 
-    console.log('✅ Bucket exists');
+    try {
+      // Convert file to buffer
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
 
-    // Upload to Supabase Storage using direct HTTP request
-    const uploadUrl = `${supabaseUrl}/storage/v1/object/menu-files/${filePath}`;
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', new Blob([buffer], { type: file.type }), fileName);
+      // Upload via Supabase storage client
+      const { data, error } = await supabase.storage
+        .from('menu-files')
+        .upload(bucketPath, buffer, {
+          contentType: file.type,
+          upsert: false,
+        });
 
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-      },
-      body: uploadFormData
-    });
+      if (error) {
+        console.error('Supabase storage upload error', error);
+        // If you get "Invalid Compact JWS" here, verify this server code runs and the SUPABASE_SECRET_KEY slice above printed an sb_secret_ prefix.
+        return NextResponse.json({ 
+          error: 'Storage upload failed', 
+          details: error 
+        }, { status: 500 });
+      }
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error('❌ Upload error:', errorText);
-      return NextResponse.json(
-        { error: 'Failed to upload file: ' + errorText },
-        { status: uploadResponse.status }
-      );
-    }
+      // Generate public URL (bucket is public)
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${bucketPath}`;
 
-    const uploadData = await uploadResponse.json();
-    console.log('✅ Upload successful:', uploadData);
+      // Determine file type for database
+      const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
 
-    // Get public URL
-    const publicUrl = `${supabaseUrl}/storage/v1/object/public/menu-files/${filePath}`;
-    console.log('✅ Public URL:', publicUrl);
+      return NextResponse.json({
+        message: 'Upload successful',
+        path: data.path,
+        url: publicUrl,
+        fileType: fileType,
+        mimeType: file.type
+      });
 
-    if (!publicUrl) {
-      console.error('❌ Failed to get public URL');
-      return NextResponse.json(
-        { error: 'Failed to get public URL' },
-        { status: 500 }
-      );
+    } catch (e) {
+      console.error('Upload handler exception', e);
+      return NextResponse.json({ 
+        error: 'Upload exception', 
+        details: String(e) 
+      }, { status: 500 });
     }
 
-    // Determine menu file type
-    const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
-
-    return NextResponse.json({
-      url: publicUrl,
-      path: filePath,
-      fileType: fileType,
-      mimeType: file.type
-    });
   } catch (error: any) {
     console.error('❌ API Error:', error);
     return NextResponse.json(
