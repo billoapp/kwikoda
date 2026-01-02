@@ -17,6 +17,9 @@ importers:
       '@vercel/node':
         specifier: ^3.0.0
         version: 3.2.29
+      lucide-react:
+        specifier: ^0.462.0
+        version: 0.462.0(react@19.2.3)
     devDependencies:
       '@types/node':
         specifier: ^20.19.27

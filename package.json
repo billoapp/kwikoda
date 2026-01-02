@@ -34,7 +34,8 @@
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^1.17.2",
     "@supabase/supabase-js": "^2.39.0",
-    "@vercel/node": "^3.0.0"
+    "@vercel/node": "^3.0.0",
+    "lucide-react": "^0.462.0"
   },
   "engines": {
     "node": ">=18.0.0",
