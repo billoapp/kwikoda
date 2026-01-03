@@ -60,10 +60,10 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
               src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
               className="border-0 rounded"
               style={{
-                width: '400px',
-                height: '250px',
-                minWidth: '250px',
-                minHeight: '150px',
+                width: '100%',
+                height: '500px',
+                minWidth: '300px',
+                minHeight: '400px',
                 maxWidth: '100%',
                 maxHeight: '100%'
               }}

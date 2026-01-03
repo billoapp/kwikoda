@@ -8,7 +8,7 @@ import { useVibrate } from '@/hooks/useVibrate';
 import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
-import PDFViewer from '../../../../components/PDFViewer';
+// import PDFViewer from '../../../../components/PDFViewer'; // PDF support temporarily disabled
 import MessagePanel from './MessagePanel';
 
 // Temporary format function to bypass import issue
@@ -105,7 +105,7 @@ export default function MenuPage() {
   const [menuType, setMenuType] = useState<'interactive' | 'static'>('interactive');
   const [staticMenuUrl, setStaticMenuUrl] = useState<string | null>(null);
   const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | null>(null);
-  const [showStaticMenu, setShowStaticMenu] = useState(false);
+  const [showStaticMenu, setShowStaticMenu] = useState(true); // Start expanded by default
   const [imageScale, setImageScale] = useState(1);
   const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
 
@@ -1325,7 +1325,7 @@ export default function MenuPage() {
             <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
                 <h2 className="text-sm font-semibold text-gray-700">Viewer</h2>
-                <p className="text-xs text-gray-500">View {staticMenuType === 'pdf' ? 'PDF' : 'Image'} menu</p>
+                <p className="text-xs text-gray-500">View image menu</p>
               </div>
               <button
                 onClick={toggleStaticMenu}
@@ -1345,15 +1345,24 @@ export default function MenuPage() {
               className={`overflow-hidden transition-all duration-500 ease-in-out ${
                 !showStaticMenu 
                   ? 'max-h-0 opacity-0' 
-                  : 'max-h-[50vh] opacity-100'
+                  : 'max-h-[70vh] opacity-100'
               }`}
             >
-              <div className="relative z-40 bg-gray-900 bg-opacity-95 flex flex-col h-[50vh] min-h-[300px]">
+              <div className="relative z-40 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
                 {/* Content */}
                 <div className="flex-1 overflow-hidden">
+                  {/* PDF viewer temporarily disabled - only show images */}
                   {staticMenuType === 'pdf' ? (
-                    <PDFViewer pdfUrl={staticMenuUrl} />
+                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                      <div className="text-center text-gray-600 p-8">
+                        <FileText size={48} className="mx-auto mb-4 text-gray-400" />
+                        <h3 className="text-lg font-semibold mb-2">PDF Viewer Temporarily Disabled</h3>
+                        <p className="text-sm">PDF menu viewing is currently unavailable. Please ask staff for assistance or use the interactive menu.</p>
+                      </div>
+                    </div>
                   ) : (
+                    // <PDFViewer pdfUrl={staticMenuUrl} />
+                  // ) : (
                     // Image viewer with zoom
                     <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
                       {/* Image Content */}

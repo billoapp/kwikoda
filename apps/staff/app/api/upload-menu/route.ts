@@ -88,9 +88,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate file type
+    // Validate file type - Images only
     const allowedTypes = [
-      'application/pdf',
+      // 'application/pdf', // PDF support temporarily disabled
       'image/jpeg',
       'image/jpg',
       'image/png',
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     if (!allowedTypes.includes(file.type)) {
       console.error('❌ Invalid file type:', file.type);
       return NextResponse.json({ 
-        error: 'File must be a PDF or image (JPEG, PNG, WebP)' 
+        error: 'File must be an image (JPEG, PNG, WebP). PDF support is temporarily disabled.' 
       }, { status: 400 });
     }
 
@@ -150,9 +150,9 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Create unique filename
+    // Create unique filename - Images only
     const timestamp = Date.now();
-    let extension = 'pdf';
+    let extension = 'jpg'; // Default to jpg
     if (file.type.includes('jpeg') || file.type.includes('jpg')) {
       extension = 'jpg';
     } else if (file.type.includes('png')) {
@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
     } else if (file.type.includes('webp')) {
       extension = 'webp';
     }
+    // PDF extension removed - no longer supported
     
     const filePath = `menus/${barId}/menu_${barId}_${timestamp}.${extension}`;
     console.log('📤 Upload path:', filePath);
@@ -211,8 +212,8 @@ export async function POST(request: NextRequest) {
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${uploadData.path}`;
     console.log('✅ Upload complete! Public URL:', publicUrl);
 
-    // Update bar record in database
-    const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
+    // Update bar record in database - Images only
+    const fileType = 'image'; // Always image now, PDF support disabled
     console.log('💾 Updating bar record...');
     
     const { error: updateError } = await supabase

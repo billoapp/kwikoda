@@ -1379,12 +1379,12 @@ export default function MenuManagementPage() {
                       </label>
                       <input
                         type="file"
-                        accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
                         onChange={handleMenuFileChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        📄 PDF, JPEG, PNG, or WebP • Max 10MB
+                        🖼️ JPEG, PNG, or WebP images only • Max 10MB • PDF support temporarily disabled
                       </p>
                     </div>
 
