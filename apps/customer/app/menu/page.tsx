@@ -1717,7 +1717,19 @@ export default function MenuPage() {
       {/* Close Tab Section - Simple text button */}
       <div className="bg-white p-4 border-t">
         <button
-          onClick={() => setShowCloseConfirm(true)}
+          onClick={() => {
+            if (balance > 0) {
+              // Show red toast immediately for outstanding balance
+              showToast({
+                type: 'error',
+                title: 'Cannot Close Tab',
+                message: 'You have outstanding balance. Please pay at the bar before closing your tab.'
+              });
+              return;
+            }
+            // Show confirmation for green tabs (no balance)
+            setShowCloseConfirm(true);
+          }}
           className={`w-full py-3 rounded-xl font-medium transition ${
             orders.filter(order => order.status === 'confirmed').length === 0 
               ? 'text-green-600 hover:bg-green-50' 
@@ -1726,12 +1738,7 @@ export default function MenuPage() {
                 : 'text-green-600 hover:bg-green-50'
           }`}
         >
-          {orders.filter(order => order.status === 'confirmed').length === 0 
-            ? 'Close Tab' 
-            : balance > 0 
-              ? `Close Tab (Balance: ${formatCurrency(balance)})`
-              : 'Close Tab'
-          }
+          Close Tab
         </button>
       </div>
       
