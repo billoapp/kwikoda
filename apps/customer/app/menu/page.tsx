@@ -8,6 +8,7 @@ import { useVibrate } from '@/hooks/useVibrate';
 import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
+import { useToast } from '@/components/ui/Toast';
 // import PDFViewer from '../../../../components/PDFViewer'; // PDF support temporarily disabled
 import MessagePanel from './MessagePanel';
 
@@ -90,6 +91,7 @@ export default function MenuPage() {
     message: string;
   }>({ show: false, orderTotal: '', message: '' });
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
+  const { showToast } = useToast();
   
   // Telegram messaging state
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -653,6 +655,25 @@ export default function MenuPage() {
         return;
       }
 
+      // Check if there's an outstanding balance
+      const tabTotal = orders
+        .filter(order => order.status === 'confirmed')
+        .reduce((sum, order) => sum + parseFloat(order.total), 0);
+      const paidTotal = payments
+        .filter(payment => payment.status === 'success')
+        .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+      const currentBalance = tabTotal - paidTotal;
+
+      // PREVENT closing if there's an outstanding balance
+      if (currentBalance > 0) {
+        showToast({
+          type: 'error',
+          title: 'Cannot Close Tab',
+          message: `You have ${formatCurrency(currentBalance)} outstanding balance. Please pay at the bar before closing your tab.`
+        });
+        return; // Stop here - don't close the tab
+      }
+
       const { error } = await (supabase as any)
         .from('tabs')
         .update({
@@ -670,6 +691,13 @@ export default function MenuPage() {
       sessionStorage.removeItem('currentTab');
       sessionStorage.removeItem('cart');
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
+
+      // Show success toast
+      showToast({
+        type: 'success',
+        title: 'Tab Closed',
+        message: 'Tab closed successfully. Thank you!'
+      });
 
       router.replace('/');
     } catch (error) {
@@ -812,6 +840,12 @@ export default function MenuPage() {
   };
 
   const processPayment = async () => {
+    // DISABLED: Show coming soon message instead of processing payment
+    alert('Digital payments coming soon! Please pay directly at the bar using cash, M-Pesa, Airtel Money, or credit/debit cards.');
+    return;
+    
+    // Original payment logic (commented out)
+    /*
     if (activePaymentMethod === 'cash') {
       alert('Cash payment confirmed. Please wait for staff to confirm.');
       return;
@@ -842,6 +876,7 @@ export default function MenuPage() {
       console.error('Payment error:', error);
       alert('Payment failed');
     }
+    */
   };
 
   const sendTelegramMessage = async () => {
@@ -1664,21 +1699,42 @@ export default function MenuPage() {
                   )}
                   <button
                     onClick={processPayment}
-                    disabled={
-                      (activePaymentMethod === 'mpesa' && (!phoneNumber || !paymentAmount)) ||
-                      (activePaymentMethod === 'cards' && !paymentAmount) ||
-                      submittingOrder
-                    }
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-lg text-sm font-medium disabled:opacity-50"
+                    disabled={true}
+                    className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg text-sm font-medium cursor-not-allowed"
                   >
-                    {submittingOrder ? 'Processing...' : 'Pay Now'}
+                    Digital Payments Coming Soon
                   </button>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Please pay at the bar using cash, M-Pesa, Airtel Money, or cards
+                  </p>
                 </div>
               </div>
             </div>
           )}
         </div>
       )}
+      
+      {/* Close Tab Section - Simple text button */}
+      <div className="bg-white p-4 border-t">
+        <button
+          onClick={() => setShowCloseConfirm(true)}
+          className={`w-full py-3 rounded-xl font-medium transition ${
+            orders.filter(order => order.status === 'confirmed').length === 0 
+              ? 'text-green-600 hover:bg-green-50' 
+              : balance > 0 
+                ? 'text-red-600 hover:bg-red-50'
+                : 'text-green-600 hover:bg-green-50'
+          }`}
+        >
+          {orders.filter(order => order.status === 'confirmed').length === 0 
+            ? 'Close Tab' 
+            : balance > 0 
+              ? `Close Tab (Balance: ${formatCurrency(balance)})`
+              : 'Close Tab'
+          }
+        </button>
+      </div>
+      
       {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
         <div className="bg-white p-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>

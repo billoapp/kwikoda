@@ -443,16 +443,20 @@ export default function TabPage() {
         )}
       </div>
 
-      {/* Pay Button */}
+      {/* Pay Button - DISABLED */}
       {balance > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4 border-t z-20">
           <button
-            onClick={() => router.push('/payment')}
-            className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 flex items-center justify-center gap-2 transition"
+            onClick={() => alert('Digital payments coming soon! Please pay directly at the bar using cash, M-Pesa, Airtel Money, or credit/debit cards.')}
+            className="w-full bg-gray-300 text-gray-500 py-4 rounded-xl font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+            disabled
           >
             <CreditCard size={20} />
-            Pay {formatCurrency(balance)}
+            Digital Payments Coming Soon
           </button>
+          <p className="text-xs text-gray-500 text-center mt-2">
+            Please pay at the bar using cash, M-Pesa, Airtel Money, or cards
+          </p>
         </div>
       )}
     </div>
