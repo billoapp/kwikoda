@@ -355,8 +355,10 @@ export default function MenuManagementPage() {
       if (error) throw error;
 
       setBarSettings(data);
+      setLoading(false);
     } catch (error) {
       console.error('Error loading bar settings:', error);
+      setLoading(false);
     }
   };
 
