@@ -2,11 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_URL = process.env.PUBLIC_SUPABASE_URL;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY in env');
+  console.error('Missing PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in env');
   throw new Error('Missing required environment variables');
 }
 
@@ -15,7 +15,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 export async function POST(request: NextRequest) {
   try {
     console.info('ENTRY upload-menu handler, method=', request.method);
-    console.info('SUPABASE_URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.info('SUPABASE_URL present:', !!process.env.PUBLIC_SUPABASE_URL);
     console.info('SUPABASE_SECRET_KEY prefix:', process.env.SUPABASE_SECRET_KEY ? process.env.SUPABASE_SECRET_KEY.slice(0, 10) : null);
     console.info('Incoming Content-Type:', request.headers.get('content-type'));
     console.info('Incoming Origin:', request.headers.get('origin'));
@@ -86,6 +86,23 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error('Storage upload error message:', error.message);
         console.error('Storage upload error details:', JSON.stringify(error, null, 2));
+        console.error('Full error object:', error);
+        
+        // Check for specific error types
+        if (error.message?.includes('bucket') || error.message?.includes('not found')) {
+          return NextResponse.json({ 
+            error: 'Storage bucket "menu-files" does not exist. Please create it in Supabase dashboard.', 
+            details: error.message 
+          }, { status: 500 });
+        }
+        
+        if (error.message?.includes('permission') || error.message?.includes('unauthorized')) {
+          return NextResponse.json({ 
+            error: 'Storage permission denied. Check RLS policies for menu-files bucket.', 
+            details: error.message 
+          }, { status: 500 });
+        }
+        
         return NextResponse.json({ 
           error: 'Storage upload failed', 
           details: error.message 
