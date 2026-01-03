@@ -1,28 +1,28 @@
-// api/upload-menu/route.ts
+// apps/staff/app/api/upload-menu/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Force dynamic to avoid caching issues
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
+  console.log('🚀 UPLOAD-MENU API STARTED');
+  
   try {
-    console.log('=== ROOT LEVEL UPLOAD-MENU API CALLED ===');
-    console.log('Request method:', request.method);
+    // Log basic request info
+    console.log('📋 Request method:', request.method);
+    console.log('📋 Content-Type:', request.headers.get('content-type'));
     
-    // Log ALL headers for debugging
-    const headers: Record<string, string> = {};
-    request.headers.forEach((value, key) => {
-      headers[key] = value;
-    });
-    console.log('Request headers:', headers);
-    
+    // Check for test requests (without form data)
     const contentType = request.headers.get('content-type');
-    console.log('Content-Type:', contentType);
-    
-    // Return test response for non-form-data requests
     if (!contentType?.includes('multipart/form-data')) {
+      console.log('📝 Test request detected');
       return NextResponse.json({
-        message: 'Root-level upload-menu API is working',
+        success: true,
+        message: 'Upload-menu API is working',
+        endpoint: '/api/upload-menu',
         timestamp: new Date().toISOString(),
-        note: 'Send FormData with file and barId for upload'
+        note: 'Send FormData with "file" and "barId" for upload'
       });
     }
 
@@ -30,50 +30,64 @@ export async function POST(request: NextRequest) {
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
-    console.log('Environment check:');
-    console.log('- SUPABASE_URL exists:', !!SUPABASE_URL);
+    console.log('🔧 Environment check:');
+    console.log('- NEXT_PUBLIC_SUPABASE_URL exists:', !!SUPABASE_URL);
     console.log('- SUPABASE_SECRET_KEY exists:', !!SUPABASE_SECRET_KEY);
 
     if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
       console.error('❌ Missing environment variables');
+      const missingVars = [];
+      if (!SUPABASE_URL) missingVars.push('NEXT_PUBLIC_SUPABASE_URL');
+      if (!SUPABASE_SECRET_KEY) missingVars.push('SUPABASE_SECRET_KEY');
+      
       return NextResponse.json({ 
-        error: 'Server configuration error',
-        debug: {
-          hasSupabaseUrl: !!SUPABASE_URL,
-          hasSupabaseKey: !!SUPABASE_SECRET_KEY
-        }
+        error: 'Server configuration error: Missing environment variables',
+        details: `Missing required environment variables: ${missingVars.join(', ')}`,
+        missingVariables: missingVars,
+        hasSupabaseUrl: !!SUPABASE_URL,
+        hasSupabaseKey: !!SUPABASE_SECRET_KEY
       }, { status: 500 });
     }
 
     // Parse form data
+    console.log('📦 Parsing form data...');
     const formData = await request.formData();
-    console.log('Form data keys:', Array.from(formData.keys()));
-    
     const file = formData.get('file') as File;
     const barId = formData.get('barId') as string;
 
-    console.log('File info:', {
-      name: file?.name,
-      size: file?.size,
-      type: file?.type,
-      barId
+    console.log('📁 File info:', {
+      hasFile: !!file,
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileType: file?.type,
+      barId: barId
     });
 
     if (!file) {
+      console.error('❌ No file provided');
       return NextResponse.json({ 
-        error: 'No file provided' 
+        error: 'No file provided (field name must be "file")' 
       }, { status: 400 });
     }
 
     if (!barId) {
+      console.error('❌ No barId provided');
       return NextResponse.json({ 
         error: 'No barId provided' 
       }, { status: 400 });
     }
 
-    // Initialize Supabase
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
-    
+    // Validate barId is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(barId)) {
+      console.error('❌ Invalid barId format:', barId);
+      return NextResponse.json({ 
+        error: 'Invalid barId format. Must be a valid UUID.',
+        details: 'barId should be in format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+        provided: barId
+      }, { status: 400 });
+    }
+
     // Validate file type
     const allowedTypes = [
       'application/pdf',
@@ -84,105 +98,198 @@ export async function POST(request: NextRequest) {
     ];
     
     if (!allowedTypes.includes(file.type)) {
+      console.error('❌ Invalid file type:', file.type);
       return NextResponse.json({ 
-        error: 'File must be PDF or image (JPEG, PNG, WebP)' 
+        error: 'File must be a PDF or image (JPEG, PNG, WebP)' 
       }, { status: 400 });
     }
 
-    // Validate file size (10MB max)
+    // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
+      console.error('❌ File too large:', file.size);
       return NextResponse.json({ 
         error: 'File size must be less than 10MB' 
       }, { status: 400 });
     }
 
-    // Create unique filename
-    const timestamp = Date.now();
-    const fileExtension = file.type === 'application/pdf' ? 'pdf' : 
-                         file.type.includes('jpeg') || file.type.includes('jpg') ? 'jpg' :
-                         file.type.includes('png') ? 'png' : 'webp';
-    
-    const filePath = `menus/${barId}/menu_${timestamp}.${fileExtension}`;
+    // Initialize Supabase
+    console.log('🔗 Creating Supabase client...');
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
+    console.log('✅ Supabase client created');
 
+    // Test storage bucket accessibility
+    console.log('🔍 Testing storage bucket accessibility...');
     try {
-      // Convert file to buffer
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      console.log('Attempting Supabase storage upload...');
-      
-      // Upload to storage
-      const { data, error } = await supabase.storage
-        .from('menu-files')
-        .upload(filePath, buffer, {
-          contentType: file.type,
-          upsert: true
-        });
-
-      if (error) {
-        console.error('Storage upload error:', error);
+      const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
+      if (bucketError) {
+        console.error('❌ Failed to list buckets:', bucketError);
         return NextResponse.json({ 
-          error: 'Failed to upload file to storage',
-          details: error.message 
+          error: 'Storage service unavailable',
+          details: 'Cannot connect to Supabase storage service',
+          supabaseError: bucketError.message
         }, { status: 500 });
       }
-
-      console.log('✅ File uploaded successfully:', data);
-
-      // Update bar record
-      const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
-      const { error: updateError } = await supabase
-        .from('bars')
-        .update({
-          static_menu_url: data.path,
-          static_menu_type: fileType,
-          menu_type: 'static'
-        })
-        .eq('id', barId);
-
-      if (updateError) {
-        console.error('Database update error:', updateError);
-        // Don't fail - just log
-        console.warn('Could not update bar record, but file uploaded');
-      }
-
-      // Return success response
-      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${data.path}`;
       
-      return NextResponse.json({
-        success: true,
-        message: 'Menu uploaded successfully',
-        path: data.path,
-        url: publicUrl,
-        fileType: fileType,
-        mimeType: file.type
-      });
-
-    } catch (uploadError: any) {
-      console.error('Upload process error:', uploadError);
+      const menuBucket = buckets?.find(bucket => bucket.name === 'menu-files');
+      if (!menuBucket) {
+        console.error('❌ Menu-files bucket not found');
+        return NextResponse.json({ 
+          error: 'Storage bucket "menu-files" does not exist',
+          details: 'Please create the "menu-files" bucket in Supabase dashboard with public read access',
+          availableBuckets: buckets?.map(b => b.name) || []
+        }, { status: 500 });
+      }
+      
+      console.log('✅ Storage bucket verified');
+    } catch (error: any) {
+      console.error('❌ Storage accessibility test failed:', error);
       return NextResponse.json({ 
-        error: 'Upload process failed',
-        details: uploadError.message 
+        error: 'Storage connectivity error',
+        details: 'Failed to connect to storage service',
+        message: error.message
       }, { status: 500 });
     }
 
+    // Create unique filename
+    const timestamp = Date.now();
+    let extension = 'pdf';
+    if (file.type.includes('jpeg') || file.type.includes('jpg')) {
+      extension = 'jpg';
+    } else if (file.type.includes('png')) {
+      extension = 'png';
+    } else if (file.type.includes('webp')) {
+      extension = 'webp';
+    }
+    
+    const filePath = `menus/${barId}/menu_${barId}_${timestamp}.${extension}`;
+    console.log('📤 Upload path:', filePath);
+
+    // Convert file to buffer
+    console.log('🔄 Converting file to buffer...');
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log('✅ File converted, size:', buffer.length);
+
+    // Upload to Supabase storage
+    console.log('☁️ Uploading to Supabase storage...');
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('menu-files')
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('❌ Storage upload error:', uploadError);
+      
+      // Provide helpful error messages
+      if (uploadError.message?.includes('bucket') || uploadError.message?.includes('not found')) {
+        return NextResponse.json({ 
+          error: 'Storage bucket "menu-files" does not exist',
+          details: 'Please create the "menu-files" bucket in Supabase dashboard',
+          supabaseError: uploadError.message
+        }, { status: 500 });
+      }
+      
+      if (uploadError.message?.includes('permission') || uploadError.message?.includes('unauthorized')) {
+        return NextResponse.json({ 
+          error: 'Storage permission denied',
+          details: 'Check RLS policies for menu-files bucket in Supabase',
+          supabaseError: uploadError.message
+        }, { status: 500 });
+      }
+      
+      return NextResponse.json({ 
+        error: 'Failed to upload file to storage',
+        details: uploadError.message
+      }, { status: 500 });
+    }
+
+    console.log('✅ Storage upload successful:', uploadData);
+
+    // Update bar record in database
+    const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
+    console.log('💾 Updating bar record...');
+    
+    const { error: updateError } = await supabase
+      .from('bars')
+      .update({
+        static_menu_url: uploadData.path,
+        static_menu_type: fileType,
+        menu_type: 'static'
+      })
+      .eq('id', barId);
+
+    if (updateError) {
+      console.error('❌ Database update error:', updateError);
+      
+      // Provide specific error messages based on error type
+      if (updateError.code === '22P02') {
+        return NextResponse.json({ 
+          error: 'Invalid barId format for database',
+          details: 'The barId must be a valid UUID that exists in the bars table',
+          supabaseError: updateError.message
+        }, { status: 400 });
+      }
+      
+      if (updateError.code === '23503') {
+        return NextResponse.json({ 
+          error: 'Bar not found',
+          details: 'The specified barId does not exist in the database',
+          supabaseError: updateError.message
+        }, { status: 404 });
+      }
+      
+      if (updateError.message?.includes('permission') || updateError.message?.includes('RLS')) {
+        return NextResponse.json({ 
+          error: 'Database permission denied',
+          details: 'Check RLS policies for bars table in Supabase',
+          supabaseError: updateError.message
+        }, { status: 500 });
+      }
+      
+      // For other database errors, still upload the file but warn about DB update failure
+      console.warn('⚠️ File uploaded but database update failed');
+    } else {
+      console.log('✅ Database updated successfully');
+    }
+
+    // Create public URL
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${uploadData.path}`;
+    console.log('✅ Upload complete! Public URL:', publicUrl);
+    
+    // Return success response
+    return NextResponse.json({
+      success: true,
+      message: 'Menu uploaded successfully',
+      path: uploadData.path,
+      url: publicUrl,
+      fileType: fileType,
+      mimeType: file.type,
+      barId: barId
+    });
+
   } catch (error: any) {
-    console.error('❌ API Error:', error);
+    console.error('💥 UNEXPECTED API ERROR:', error);
+    console.error('💥 Error stack:', error.stack);
+    
     return NextResponse.json({
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      details: error.stack
     }, { status: 500 });
   }
 }
 
-// Add CORS headers for frontend requests
-export async function OPTIONS() {
+// Add OPTIONS handler for CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  console.log('🔄 OPTIONS request received');
   return new NextResponse(null, {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
 }

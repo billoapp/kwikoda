@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Upload</title>
+</head>
+<body>
+    <h1>Test Menu Upload</h1>
+    <form id="uploadForm">
+        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.webp" required>
+        <input type="text" id="barIdInput" placeholder="Bar ID" value="test-bar-123" required>
+        <button type="submit">Upload</button>
+    </form>
+    
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const barIdInput = document.getElementById('barIdInput');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<p style="color: red;">Please select a file</p>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('barId', barIdInput.value);
+            
+            try {
+                resultDiv.innerHTML = '<p>Uploading...</p>';
+                
+                const response = await fetch('http://localhost:3003/api/upload-menu', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<p style="color: green;">Success: ${result.message}</p><pre>${JSON.stringify(result, null, 2)}</pre>`;
+                } else {
+                    resultDiv.innerHTML = `<p style="color: red;">Error: ${result.error}</p><pre>${JSON.stringify(result, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Network Error: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
