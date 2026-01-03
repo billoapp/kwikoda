@@ -1218,11 +1218,10 @@ export default function MenuPage() {
 
       
       
-      {/* Interactive Menu - Collapsible with fluid animations */}
-      {barProducts.length > 0 && (
+      {/* Interactive Menu - DISABLED for development */}
+      {/* {barProducts.length > 0 && (
         <div className="bg-gray-50 px-4">
           <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-            {/* Interactive Menu Header */}
             <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Interactive Menu</h2>
@@ -1241,7 +1240,6 @@ export default function MenuPage() {
               </button>
             </div>
             
-            {/* Interactive Menu Content */}
             <div 
               className={`overflow-hidden transition-all duration-500 ease-in-out ${
                 interactiveMenuCollapsed 
@@ -1326,7 +1324,7 @@ export default function MenuPage() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Static Menu Viewer - Collapsible with fluid animations */}
       {staticMenuUrl && (
