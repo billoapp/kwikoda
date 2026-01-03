@@ -71,18 +71,25 @@ export default function QuickOrderPage() {
   const [recentProducts, setRecentProducts] = useState<QuickProduct[]>([]);
   const [showRecent, setShowRecent] = useState(false);
 
-  // Catalog data
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showCatalog, setShowCatalog] = useState(false);
+  // Catalog data - DISABLED
+  // const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // const [categories, setCategories] = useState<Category[]>([]);
+  // const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers] = useState<Supplier[]>([]);
+  const [categories] = useState<Category[]>([]);
+  const [products] = useState<Product[]>([]);
+  
+  // const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // const [searchQuery, setSearchQuery] = useState('');
+  // const [showCatalog, setShowCatalog] = useState(false);
+  const [selectedCategory] = useState<string>('all');
+  const [searchQuery] = useState('');
+  const [showCatalog] = useState(false);
 
   useEffect(() => {
     loadTabData();
     loadRecentProducts();
-    loadCatalogData();
+    // DISABLED: loadCatalogData();
   }, [tabId]);
 
   const loadTabData = async () => {
@@ -102,6 +109,8 @@ export default function QuickOrderPage() {
     }
   };
 
+  // DISABLED: Catalog data loading
+  /*
   const loadCatalogData = async () => {
     try {
       const { data: suppliersData, error: suppliersError } = await supabase
@@ -134,7 +143,10 @@ export default function QuickOrderPage() {
       console.error('Error loading catalog:', error);
     }
   };
+  */
 
+  // DISABLED: Product filtering
+  /*
   const filteredProducts = products.filter((product) => {
     if (selectedCategory !== 'all' && product.category !== selectedCategory) {
       return false;
@@ -149,13 +161,17 @@ export default function QuickOrderPage() {
     }
     return true;
   });
+  */
 
+  // DISABLED: Get display image
+  /*
   const getDisplayImage = (product: Product | undefined) => {
     if (!product) return null;
     if (product.image_url) return product.image_url;
     const category = categories.find((cat) => cat.name === product.category);
     return category?.image_url || null;
   };
+  */
 
   const loadRecentProducts = () => {
     const stored = localStorage.getItem('tabeza_recent_products');
@@ -236,6 +252,8 @@ export default function QuickOrderPage() {
     alert('✅ Item added to cart!');
   };
 
+  // DISABLED: Add catalog item
+  /*
   const addCatalogItem = (product: Product) => {
     // Prompt for price since catalog items don't have fixed prices
     const price = prompt(`Enter price for ${product.name}:`, '');
@@ -267,6 +285,7 @@ export default function QuickOrderPage() {
     setShowCatalog(false);
     alert('✅ Item added to cart!');
   };
+  */
 
   const useRecentProduct = (product: QuickProduct) => {
     setCurrentName(product.name);
@@ -320,6 +339,7 @@ export default function QuickOrderPage() {
               <Plus size={16} />
               Add Item
             </h2>
+            {/* DISABLED: Browse Catalog toggle button
             <button
               onClick={() => setShowCatalog(!showCatalog)}
               className={`px-3 py-1 rounded-lg text-sm font-medium ${
@@ -330,6 +350,7 @@ export default function QuickOrderPage() {
             >
               {showCatalog ? 'Custom' : 'Browse Catalog'}
             </button>
+            */}
           </div>
 
           {!showCatalog ? (
@@ -415,6 +436,8 @@ export default function QuickOrderPage() {
               </button>
             </div>
           ) : (
+            // DISABLED: Catalog browsing interface
+            /*
             <div className="space-y-3">
               <div className="relative mb-3">
                 <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -490,6 +513,8 @@ export default function QuickOrderPage() {
                 )}
               </div>
             </div>
+            */
+           null
           )}
         </div>
 
@@ -500,10 +525,9 @@ export default function QuickOrderPage() {
             How to use:
           </h3>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Add items using the form above or browse catalog</li>
+            <li>• Add items using the form above</li>
             <li>• Items will be added to your cart automatically</li>
             <li>• Return to the tab page to review and submit your order</li>
-            <li>• You can mix catalog items with custom items</li>
           </ul>
         </div>
 

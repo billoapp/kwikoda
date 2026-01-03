@@ -874,7 +874,7 @@ export default function TabDetailPage() {
         )}
 
         <div className="p-4">
-          {/* Order Creation Buttons - Always visible */}
+          {/* Order Creation Buttons - Disable Browse Catalog */}
           <div className="flex gap-4 mb-6 justify-center">
             <button
               onClick={() => router.push(`/tabs/${tabId}/quick-order`)}
@@ -883,6 +883,7 @@ export default function TabDetailPage() {
               <Plus size={18} />
               Create Order
             </button>
+            {/* DISABLED: Browse Catalog button
             <button
               onClick={() => router.push(`/tabs/${tabId}/add-order`)}
               className="text-purple-600 font-medium hover:text-purple-700 flex items-center gap-2"
@@ -890,6 +891,7 @@ export default function TabDetailPage() {
               <ShoppingCart size={18} />
               Browse Catalog
             </button>
+            */}
           </div>
 
           {/* Telegram Messaging Section */}
