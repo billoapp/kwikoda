@@ -97,52 +97,77 @@ export default function MenuManagementPage() {
   const [barId, setBarId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Catalog data
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  // Catalog data - DISABLED
+  // const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // const [categories, setCategories] = useState<Category[]>([]);
+  // const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers] = useState<Supplier[]>([]);
+  const [categories] = useState<Category[]>([]);
+  const [products] = useState<Product[]>([]);
 
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  // const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  // const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSupplier] = useState<Supplier | null>(null);
+  const [selectedCategory] = useState<string>('all');
+  const [searchQuery] = useState('');
 
-  // Bar menu (published items)
-  const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
-  const [addingPrice, setAddingPrice] = useState<Record<string, string>>({});
+  // Bar menu (published items) - DISABLED
+  // const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
+  // const [addingPrice, setAddingPrice] = useState<Record<string, string>>({});
+  const [barProducts] = useState<BarProduct[]>([]);
+  const [addingPrice] = useState<Record<string, string>>({});
 
-  // Custom products (unpublished)
-  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
-  const [showAddCustom, setShowAddCustom] = useState(false);
-  const [newCustomItem, setNewCustomItem] = useState({
+  // Custom products (unpublished) - DISABLED
+  // const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
+  // const [showAddCustom, setShowAddCustom] = useState(false);
+  // const [newCustomItem, setNewCustomItem] = useState({
+  //   name: '',
+  //   category: '',
+  //   description: '',
+  //   image_url: '',
+  // });
+  const [customProducts] = useState<CustomProduct[]>([]);
+  const [showAddCustom] = useState(false);
+  const [newCustomItem] = useState({
     name: '',
     category: '',
     description: '',
     image_url: '',
   });
 
-  // Editing states
-  const [editingPrice, setEditingPrice] = useState<string | null>(null);
-  const [editingCustom, setEditingCustom] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
+  // Editing states - DISABLED
+  // const [editingPrice, setEditingPrice] = useState<string | null>(null);
+  // const [editingCustom, setEditingCustom] = useState<string | null>(null);
+  // const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
+  //   name: '',
+  //   category: '',
+  //   description: '',
+  //   image_url: '',
+  // });
+  const [editingPrice] = useState<string | null>(null);
+  const [editingCustom] = useState<string | null>(null);
+  const [editForm] = useState<Partial<CustomProduct>>({
     name: '',
     category: '',
     description: '',
     image_url: '',
   });
 
-  // Cropper states
+  // Cropper states - DISABLED (keep for image sets only)
   const [showCropper, setShowCropper] = useState(false);
   const [currentImageField, setCurrentImageField] = useState<'new' | 'edit'>('new');
 
-  // Static menu states
+  // Static menu states - KEEP ACTIVE
   const [barSettings, setBarSettings] = useState<BarSettings | null>(null);
   const [menuUploadLoading, setMenuUploadLoading] = useState(false);
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [menuPreview, setMenuPreview] = useState<string | null>(null);
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
+  const [interactiveMenuCollapsed] = useState(false);
   const [staticMenuCollapsed, setStaticMenuCollapsed] = useState(false);
 
-  // Helper function to get display image with category fallback
+  // Helper function to get display image with category fallback - DISABLED
+  /*
   const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
     if (!product) {
       return null;
@@ -153,8 +178,11 @@ export default function MenuManagementPage() {
     const category = categories.find((cat) => cat.name === (categoryName || product.category));
     return category?.image_url || null;
   };
+  */
+  const getDisplayImage = () => null;
 
-  // Helper function to convert Google Drive share links to direct links
+  // Helper function to convert Google Drive share links to direct links - DISABLED
+  /*
   const convertGoogleDriveLink = (url: string): string => {
     if (!url) return url;
     if (url.includes('drive.google.com') && url.includes('/file/d/')) {
@@ -166,8 +194,10 @@ export default function MenuManagementPage() {
     }
     return url;
   };
+  */
+  const convertGoogleDriveLink = (url: string): string => url;
 
-  // Upload image to server and get URL
+  // Upload image to server and get URL - DISABLED (keep for image sets only)
   const uploadImageToServer = async (file: File): Promise<string> => {
     try {
       const formData = new FormData();
@@ -213,13 +243,15 @@ export default function MenuManagementPage() {
 
   useEffect(() => {
     if (barId) {
-      loadCatalogData();
-      loadBarMenu();
-      loadCustomProducts();
-      loadBarSettings();
+      // DISABLED: loadCatalogData();
+      // DISABLED: loadBarMenu();
+      // DISABLED: loadCustomProducts();
+      loadBarSettings(); // KEEP ACTIVE
     }
   }, [barId]);
 
+  // DISABLED: Catalog data loading
+  /*
   const loadCatalogData = async () => {
     try {
       setLoading(true);
@@ -240,10 +272,7 @@ export default function MenuManagementPage() {
 
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select(`
-          *,
-          supplier:suppliers(id, name, logo_url)
-        `)
+        .select(`*, supplier:suppliers(id, name, logo_url)`)
         .eq('active', true)
         .order('name');
 
@@ -259,7 +288,10 @@ export default function MenuManagementPage() {
       setLoading(false);
     }
   };
+  */
 
+  // DISABLED: Bar menu loading
+  /*
   const loadBarMenu = async () => {
     try {
       if (!barId) return;
@@ -279,7 +311,10 @@ export default function MenuManagementPage() {
       console.error('Unexpected error in loadBarMenu:', error);
     }
   };
+  */
 
+  // DISABLED: Custom products loading
+  /*
   const loadCustomProducts = async () => {
     try {
       if (!barId) return;
@@ -305,7 +340,9 @@ export default function MenuManagementPage() {
       console.error('Error loading custom products:', error);
     }
   };
+  */
 
+  // KEEP ACTIVE: Bar settings loading
   const loadBarSettings = async () => {
     try {
       if (!barId) return;
@@ -323,6 +360,7 @@ export default function MenuManagementPage() {
     }
   };
 
+  // KEEP ACTIVE: Handle menu file change
   const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -339,6 +377,7 @@ export default function MenuManagementPage() {
     }
   };
 
+  // KEEP ACTIVE: Handle menu upload
   const handleMenuUpload = async () => {
     if (!menuFile || !barId) {
       alert('Please select a file to upload');
@@ -387,6 +426,7 @@ export default function MenuManagementPage() {
     }
   };
 
+  // KEEP ACTIVE: Handle menu type change
   const handleMenuTypeChange = async (type: 'interactive' | 'static') => {
     if (!barId) return;
 
@@ -407,11 +447,16 @@ export default function MenuManagementPage() {
   };
 
   useEffect(() => {
+    // DISABLED: Reload custom products when bar products change
+    /*
     if (barId && barProducts.length >= 0) {
       loadCustomProducts();
     }
+    */
   }, [barProducts.length]);
 
+  // DISABLED: Product filtering
+  /*
   const filteredProducts = products.filter((product) => {
     if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
       return false;
@@ -429,11 +474,19 @@ export default function MenuManagementPage() {
     }
     return true;
   });
+  */
+  const filteredProducts: Product[] = [];
 
+  // DISABLED: Check if product is in menu
+  /*
   const isProductInMenu = (productId: string) => {
     return barProducts.some((item) => item.product_id === productId);
   };
+  */
+  const isProductInMenu = () => false;
 
+  // DISABLED: Handle add to menu
+  /*
   const handleAddToMenu = async (product: Product) => {
     const price = addingPrice[product.id];
     if (!price || parseFloat(price) <= 0) {
@@ -477,7 +530,10 @@ export default function MenuManagementPage() {
       alert('Failed to add item: ' + error.message);
     }
   };
+  */
 
+  // DISABLED: Handle publish custom product
+  /*
   const handlePublishCustomProduct = async (customProduct: CustomProduct) => {
     const price = addingPrice[customProduct.id];
     if (!price || parseFloat(price) <= 0) {
@@ -511,7 +567,10 @@ export default function MenuManagementPage() {
       alert('Failed to publish: ' + error.message);
     }
   };
+  */
 
+  // DISABLED: Handle create custom product
+  /*
   const handleCreateCustomProduct = async () => {
     if (!newCustomItem.name || !newCustomItem.category) {
       alert('Please fill in name and category');
@@ -544,7 +603,10 @@ export default function MenuManagementPage() {
       alert('Failed to create: ' + error.message);
     }
   };
+  */
 
+  // DISABLED: Handle update price
+  /*
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
       const { error } = await supabase
@@ -566,7 +628,10 @@ export default function MenuManagementPage() {
       alert('Failed to update price: ' + error.message);
     }
   };
+  */
 
+  // DISABLED: Handle update custom product
+  /*
   const handleUpdateCustomProduct = async (customProductId: string) => {
     try {
       const { error } = await supabase
@@ -593,7 +658,10 @@ export default function MenuManagementPage() {
       alert('Failed to update: ' + error.message);
     }
   };
+  */
 
+  // DISABLED: Handle remove from menu
+  /*
   const handleRemoveFromMenu = async (menuItemId: string) => {
     if (!window.confirm('Remove this item from your menu?')) return;
 
@@ -613,7 +681,10 @@ export default function MenuManagementPage() {
       alert('Failed to remove: ' + error.message);
     }
   };
+  */
 
+  // DISABLED: Handle delete custom product
+  /*
   const handleDeleteCustomProduct = async (customProductId: string) => {
     if (!window.confirm('Permanently delete this custom product?')) return;
 
@@ -633,8 +704,10 @@ export default function MenuManagementPage() {
       alert('Failed to delete: ' + error.message);
     }
   };
+  */
 
-  // Handle image crop completion
+  // DISABLED: Handle image crop completion
+  /*
   const handleImageCropped = async (file: File, imageUrl: string) => {
     try {
       // Upload to server to get permanent URL
@@ -652,13 +725,18 @@ export default function MenuManagementPage() {
       alert('Failed to upload image: ' + error.message);
     }
   };
+  */
+  const handleImageCropped = async () => {
+    alert('Image upload is disabled for interactive menu features.');
+    setShowCropper(false);
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading catalog...</p>
+          <p className="text-gray-500">Loading...</p>
         </div>
       </div>
     );
@@ -684,7 +762,8 @@ export default function MenuManagementPage() {
     );
   }
 
-  // Browsing products view
+  // DISABLED: Browsing products view
+  /*
   if (selectedSupplier || searchQuery || selectedCategory !== 'all') {
     return (
       <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
@@ -817,8 +896,9 @@ export default function MenuManagementPage() {
       </div>
     );
   }
+  */
 
-  // Main menu management view
+  // Main menu management view - ONLY STATIC MENU FEATURES
   return (
     <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
       <div className="w-full" style={{ maxWidth: '80%' }}>
@@ -830,12 +910,28 @@ export default function MenuManagementPage() {
             <ArrowRight size={24} className="transform rotate-180" />
           </button>
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-bold">Menu Management</h1>
+            <h1 className="text-2xl font-bold">Static Menu Management</h1>
           </div>
-          <p className="text-orange-100 text-sm">{barProducts.length} items in your menu</p>
+          <p className="text-orange-100 text-sm">Manage your PDF/image menu</p>
         </div>
         <div className="p-4 space-y-6">
-          {/* Browse Product Catalog */}
+          {/* Notice about interactive menu being disabled */}
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Settings size={20} className="text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-blue-800 text-lg mb-1">Interactive Menu Temporarily Disabled</h3>
+                <p className="text-blue-700">
+                  The interactive product catalog, custom products, and menu management features are currently disabled.
+                  You can only manage your static PDF/image menu at this time.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* DISABLED: Browse Product Catalog 
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
@@ -894,8 +990,9 @@ export default function MenuManagementPage() {
               </button>
             </div>
           </div>
+          */}
 
-          {/* Unpublished Custom Products */}
+          {/* DISABLED: Unpublished Custom Products 
           {customProducts.length > 0 && (
             <div>
               <h2 className="text-lg font-bold text-gray-800 mb-3">
@@ -933,7 +1030,7 @@ export default function MenuManagementPage() {
                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         />
                         
-                        {/* Image upload section for edit form */}
+                        {/* Image upload section for edit form 
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-gray-700">Product Image</label>
                           {editForm.image_url ? (
@@ -1069,8 +1166,9 @@ export default function MenuManagementPage() {
               </div>
             </div>
           )}
+          */}
 
-          {/* Your Menu (Published Items) */}
+          {/* DISABLED: Your Menu (Published Items) 
           <div>
             <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
             {barProducts.length === 0 ? (
@@ -1202,13 +1300,14 @@ export default function MenuManagementPage() {
               </div>
             )}
           </div>
+          */}
 
-          {/* Static Menu Management - ALWAYS VISIBLE */}
+          {/* Static Menu Management - KEEP ACTIVE */}
           <div className="bg-white rounded-xl shadow-sm p-4 border-2 border-purple-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <FileText size={20} className="text-purple-600" />
-                Static Menu (PDF/Image) - Additional Menu Option
+                Static Menu (PDF/Image)
               </h2>
               <button
                 onClick={() => setStaticMenuCollapsed(!staticMenuCollapsed)}
@@ -1227,11 +1326,11 @@ export default function MenuManagementPage() {
                   </p>
                   {barSettings?.static_menu_url ? (
                     <p className="text-xs text-blue-600">
-                      ✅ Static menu uploaded ({barSettings.static_menu_type?.toUpperCase()}) - Customers can view this alongside the interactive menu
+                      ✅ Static menu uploaded ({barSettings.static_menu_type?.toUpperCase()}) - Customers can view this menu
                     </p>
                   ) : (
                     <p className="text-xs text-blue-600">
-                      ℹ️ No static menu uploaded yet - Upload a PDF or image to provide customers with an additional menu viewing option
+                      ℹ️ No static menu uploaded yet - Upload a PDF or image for customers to view
                     </p>
                   )}
                 </div>
@@ -1252,7 +1351,7 @@ export default function MenuManagementPage() {
                           {barSettings.static_menu_type?.toUpperCase()} Menu Uploaded
                         </p>
                         <p className="text-xs text-green-600 mt-1">
-                          Customers can view this menu alongside the interactive product menu
+                          Customers can view this menu
                         </p>
                         <a
                           href={barSettings.static_menu_url}
@@ -1341,14 +1440,14 @@ export default function MenuManagementPage() {
                 {/* Help Text */}
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-sm text-yellow-800">
-                    💡 <strong>Tip:</strong> The static menu complements your interactive menu. Customers can switch between browsing products and viewing the static menu. Upload a PDF for multi-page menus or an image for simple single-page menus.
+                    💡 <strong>Tip:</strong> Upload a PDF for multi-page menus or an image for simple single-page menus.
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Add Custom Item */}
+          {/* DISABLED: Add Custom Item 
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-800">Create Custom Product</h2>
@@ -1391,7 +1490,7 @@ export default function MenuManagementPage() {
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                   
-                  {/* Image upload section for new custom product */}
+                  {/* Image upload section for new custom product 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
                       Product Image
@@ -1452,7 +1551,7 @@ export default function MenuManagementPage() {
                     )}
                   </div>
 
-                  {/* Legacy URL input (as fallback) */}
+                  {/* Legacy URL input (as fallback) 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
                       Or paste image URL
@@ -1491,16 +1590,18 @@ export default function MenuManagementPage() {
               </div>
             )}
           </div>
+          */}
         </div>
       </div>
 
-      {/* Image Cropper Modal */}
+      {/* Image Cropper Modal - DISABLED 
       <InteractiveImageCropper
         isOpen={showCropper}
         onClose={() => setShowCropper(false)}
         onImageReady={handleImageCropped}
         aspectRatio={4/5}
       />
+      */}
     </div>
   );
 }
