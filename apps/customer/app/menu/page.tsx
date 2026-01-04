@@ -106,7 +106,7 @@ export default function MenuPage() {
   // Static menu states
   const [menuType, setMenuType] = useState<'interactive' | 'static'>('interactive');
   const [staticMenuUrl, setStaticMenuUrl] = useState<string | null>(null);
-  const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | null>(null);
+  const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | 'slideshow' | null>(null);
   const [showStaticMenu, setShowStaticMenu] = useState(true); // Start expanded by default
   const [imageScale, setImageScale] = useState(1);
   const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
@@ -648,15 +648,49 @@ export default function MenuPage() {
                 const resp = await fetch(`/api/get-slideshow?barId=${(fullTab as any).bar.id}`);
                 if (resp.ok) {
                   const json = await resp.json();
+                  console.log('📊 Customer app loaded slideshow:', json);
                   setSlideshowImages(json.images || []);
                   setSlideshowSettings(json.settings || { transitionSpeed: 3000 });
                   setCurrentSlideIndex(0);
                   setIsSlideshowPlaying(true);
+
+                  // If slideshow exists, show static menu
+                  if (json.images && json.images.length > 0) {
+                    setShowStaticMenu(true);
+                  }
                 } else {
                   console.warn('Failed to fetch slideshow images', resp.status);
+
+                  // Fallback: try admin inspection endpoint
+                  try {
+                    const altResp = await fetch(`/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`);
+                    if (altResp.ok) {
+                      const altJson = await altResp.json();
+                      if (altJson?.images) {
+                        setSlideshowImages(altJson.images.map((img: any) => img.image_url));
+                        setShowStaticMenu(true);
+                      }
+                    }
+                  } catch (altErr) {
+                    console.warn('Alternative fetch also failed:', altErr);
+                  }
                 }
               } catch (err) {
                 console.warn('Error fetching slideshow images', err);
+
+                // Try admin endpoint as a last-ditch fallback
+                try {
+                  const altResp = await fetch(`/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`);
+                  if (altResp.ok) {
+                    const altJson = await altResp.json();
+                    if (altJson?.images) {
+                      setSlideshowImages(altJson.images.map((img: any) => img.image_url));
+                      setShowStaticMenu(true);
+                    }
+                  }
+                } catch (altErr) {
+                  console.warn('Alternative fetch also failed:', altErr);
+                }
               }
             }
           }
@@ -1442,28 +1476,32 @@ export default function MenuPage() {
                         {slideshowImages.length === 0 ? (
                           <div className="text-center text-gray-500">No slideshow images available</div>
                         ) : (
-                          <img
-                            src={slideshowImages[currentSlideIndex]}
-                            alt={`Slide ${currentSlideIndex + 1}`}
-                            className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
-                            style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
-                          />
-                        )}
-
-                        {slideshowImages.length > 1 && (
                           <>
-                            <button
-                              onClick={() => setCurrentSlideIndex((idx) => (idx - 1 + slideshowImages.length) % slideshowImages.length)}
-                              className="absolute left-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
-                            >
-                              ‹
-                            </button>
-                            <button
-                              onClick={() => setCurrentSlideIndex((idx) => (idx + 1) % slideshowImages.length)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
-                            >
-                              ›
-                            </button>
+                            <div className="aspect-[4/5] max-w-[900px] w-full rounded-lg overflow-hidden shadow-lg transition-all duration-300">
+                              <img
+                                src={slideshowImages[currentSlideIndex]}
+                                alt={`Slide ${currentSlideIndex + 1}`}
+                                className="w-full h-full object-cover"
+                                style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
+                              />
+                            </div>
+
+                            {slideshowImages.length > 1 && (
+                              <>
+                                <button
+                                  onClick={() => setCurrentSlideIndex((idx) => (idx - 1 + slideshowImages.length) % slideshowImages.length)}
+                                  className="absolute left-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
+                                >
+                                  ‹
+                                </button>
+                                <button
+                                  onClick={() => setCurrentSlideIndex((idx) => (idx + 1) % slideshowImages.length)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
+                                >
+                                  ›
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
