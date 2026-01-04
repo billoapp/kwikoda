@@ -379,8 +379,8 @@ export default function QuickOrderPage() {
           </div>
 
           {!showCatalog ? (
-            <div className="space-y-3">
-              <div>
+            <div className="space-y-3 relative">
+              <div className="relative">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Product Name *
                 </label>
