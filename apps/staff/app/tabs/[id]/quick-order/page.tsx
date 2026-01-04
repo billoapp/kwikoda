@@ -124,18 +124,25 @@ export default function QuickOrderPage() {
 
   const loadProducts = async () => {
     try {
+      console.log('📥 Loading products from /products.json...');
       const response = await fetch('/products.json');
       if (!response.ok) {
         throw new Error('Failed to load products');
       }
       const data = await response.json();
+      console.log('✅ Products loaded successfully:', data.length, 'items');
+      console.log('📦 Sample products:', data.slice(0, 3));
       setAvailableProducts(data);
     } catch (error) {
-      console.error('Error loading products:', error);
+      console.error('❌ Error loading products:', error);
     }
   };
 
   const filterProducts = (input: string) => {
+    console.log('🔍 Filtering products for input:', input);
+    console.log('📦 Available products count:', availableProducts.length);
+    console.log('📦 First few products:', availableProducts.slice(0, 3));
+    
     if (!input.trim()) {
       setProductSuggestions([]);
       return;
@@ -145,6 +152,8 @@ export default function QuickOrderPage() {
       product.name.toLowerCase().includes(input.toLowerCase())
     ).slice(0, 8); // Limit to 8 suggestions
     
+    console.log('✅ Filtered products:', filtered);
+    console.log('🎯 Setting showSuggestions to:', filtered.length > 0);
     setProductSuggestions(filtered);
   };
 
@@ -168,13 +177,16 @@ export default function QuickOrderPage() {
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    console.log('⌨️ Input changed:', value);
     setCurrentName(value);
     filterProducts(value);
     
     // Hide suggestions when field is empty
     if (!value.trim()) {
+      console.log('🙈 Hiding suggestions - empty input');
       setShowSuggestions(false);
     } else {
+      console.log('👁️ Showing suggestions - has input');
       setShowSuggestions(true);
     }
   };
