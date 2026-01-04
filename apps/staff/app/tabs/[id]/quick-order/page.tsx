@@ -15,11 +15,16 @@ const tempFormatCurrency = (amount: number | string): string => {
   }).format(number)}`;
 };
 
-// Title case helper
+// Title case helper - capitalizes each word except symbols
 const toTitleCase = (str: string): string => {
-  return str.toLowerCase().split(' ').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1)
-  ).join(' ');
+  return str.toLowerCase().split(' ').map(word => {
+    // Check if word is all symbols (like ml, kg, etc)
+    if (/^[^a-zA-Z]+$/.test(word)) {
+      return word.toLowerCase();
+    }
+    // Capitalize first letter of regular words
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(' ');
 };
 
 interface OrderItem {
@@ -59,6 +64,10 @@ interface Category {
   image_url?: string;
 }
 
+interface ProductItem {
+  name: string;
+}
+
 export default function QuickOrderPage() {
   const router = useRouter();
   const params = useParams();
@@ -70,14 +79,17 @@ export default function QuickOrderPage() {
   const [currentPrice, setCurrentPrice] = useState('');
   const [recentProducts, setRecentProducts] = useState<QuickProduct[]>([]);
   const [showRecent, setShowRecent] = useState(false);
-
+  const [productSuggestions, setProductSuggestions] = useState<ProductItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>([]);
+  
   // Catalog data - DISABLED
   // const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   // const [categories, setCategories] = useState<Category[]>([]);
-  // const [products, setProducts] = useState<Product[]>([]);
+  // const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [suppliers] = useState<Supplier[]>([]);
   const [categories] = useState<Category[]>([]);
-  const [products] = useState<Product[]>([]);
+  const [catalogProducts] = useState<Product[]>([]);
   
   // const [selectedCategory, setSelectedCategory] = useState<string>('all');
   // const [searchQuery, setSearchQuery] = useState('');
@@ -89,6 +101,7 @@ export default function QuickOrderPage() {
   useEffect(() => {
     loadTabData();
     loadRecentProducts();
+    loadProducts();
     // DISABLED: loadCatalogData();
   }, [tabId]);
 
@@ -109,69 +122,62 @@ export default function QuickOrderPage() {
     }
   };
 
-  // DISABLED: Catalog data loading
-  /*
-  const loadCatalogData = async () => {
+  const loadProducts = async () => {
     try {
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from('suppliers')
-        .select('*')
-        .eq('active', true)
-        .order('name');
-
-      if (suppliersError) throw suppliersError;
-
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (categoriesError) throw categoriesError;
-
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select('*')
-        .eq('active', true)
-        .order('name');
-
-      if (productsError) throw productsError;
-
-      setSuppliers(suppliersData || []);
-      setCategories(categoriesData || []);
-      setProducts(productsData || []);
+      const response = await fetch('/products.json');
+      if (!response.ok) {
+        throw new Error('Failed to load products');
+      }
+      const data = await response.json();
+      setAvailableProducts(data);
     } catch (error) {
-      console.error('Error loading catalog:', error);
+      console.error('Error loading products:', error);
     }
   };
-  */
 
-  // DISABLED: Product filtering
-  /*
-  const filteredProducts = products.filter((product) => {
-    if (selectedCategory !== 'all' && product.category !== selectedCategory) {
-      return false;
+  const filterProducts = (input: string) => {
+    if (!input.trim()) {
+      setProductSuggestions([]);
+      return;
     }
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        product.name.toLowerCase().includes(query) ||
-        (product.sku && product.sku.toLowerCase().includes(query)) ||
-        product.category.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
-  */
-
-  // DISABLED: Get display image
-  /*
-  const getDisplayImage = (product: Product | undefined) => {
-    if (!product) return null;
-    if (product.image_url) return product.image_url;
-    const category = categories.find((cat) => cat.name === product.category);
-    return category?.image_url || null;
+    
+    const filtered = availableProducts.filter(product =>
+      product.name.toLowerCase().includes(input.toLowerCase())
+    ).slice(0, 8); // Limit to 8 suggestions
+    
+    setProductSuggestions(filtered);
   };
-  */
+
+  const selectProduct = (productName: string) => {
+    const formattedName = toTitleCase(productName);
+    setCurrentName(formattedName);
+    setShowSuggestions(false);
+    
+    // Check if this product has a recent price
+    const recentProduct = recentProducts.find(p => 
+      p.name.toLowerCase() === formattedName.toLowerCase()
+    );
+    
+    if (recentProduct) {
+      setCurrentPrice(recentProduct.price.toString());
+      document.getElementById('productPrice')?.focus();
+    } else {
+      document.getElementById('productName')?.focus();
+    }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCurrentName(value);
+    filterProducts(value);
+    
+    // Hide suggestions when field is empty
+    if (!value.trim()) {
+      setShowSuggestions(false);
+    } else {
+      setShowSuggestions(true);
+    }
+  };
 
   const loadRecentProducts = () => {
     const stored = localStorage.getItem('tabeza_recent_products');
@@ -217,6 +223,25 @@ export default function QuickOrderPage() {
     const quantity = parseInt(currentQuantity) || 1;
     const price = parseFloat(currentPrice);
     const name = toTitleCase(currentName.trim());
+
+    // Check if this product exists with a different price
+    const existingProduct = recentProducts.find(p => 
+      p.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (existingProduct && existingProduct.price !== price) {
+      const confirmed = window.confirm(
+        `⚠️ Price Change Detected\n\n"${name}" was previously used at ${tempFormatCurrency(existingProduct.price)}.\n` +
+        `Do you want to update it to ${tempFormatCurrency(price)}?\n\n` +
+        `Click OK to use the new price, or Cancel to keep the old price.`
+      );
+
+      if (!confirmed) {
+        // Use the old price
+        setCurrentPrice(existingProduct.price.toString());
+        return;
+      }
+    }
 
     const newItem: OrderItem = {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -363,23 +388,47 @@ export default function QuickOrderPage() {
                   id="productName"
                   type="text"
                   value={currentName}
-                  onChange={(e) => {
-                    setCurrentName(e.target.value);
-                    // Hide recent products when field is empty
-                    if (!e.target.value.trim()) {
-                      setShowRecent(false);
+                  onChange={handleNameChange}
+                  onKeyPress={(e) => handleKeyPress(e, 'name')}
+                  onFocus={() => {
+                    setShowRecent(true);
+                    if (currentName.trim()) {
+                      setShowSuggestions(true);
                     }
                   }}
-                  onKeyPress={(e) => handleKeyPress(e, 'name')}
-                  onFocus={() => setShowRecent(true)}
-                  onBlur={() => setShowRecent(false)}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setShowRecent(false);
+                      setShowSuggestions(false);
+                    }, 200);
+                  }}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   placeholder="e.g., Tusker, Nyama Choma"
                   autoComplete="off"
                 />
                 
+                {/* Product Suggestions Dropdown */}
+                {showSuggestions && productSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                      <Search size={14} className="text-gray-500" />
+                      <span className="text-xs font-semibold text-gray-600">Suggestions</span>
+                    </div>
+                    {productSuggestions.map((product, index) => (
+                      <button
+                        key={index}
+                        onClick={() => selectProduct(product.name)}
+                        className="w-full px-3 py-2 text-left hover:bg-orange-50 flex items-center justify-between"
+                      >
+                        <span className="text-sm text-gray-800">{product.name}</span>
+                        <span className="text-xs text-gray-400">Click to use</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
                 {/* Recent Products Dropdown */}
-                {showRecent && recentProducts.length > 0 && (
+                {showRecent && recentProducts.length > 0 && !showSuggestions && (
                   <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
                       <History size={14} className="text-gray-500" />
@@ -532,7 +581,11 @@ export default function QuickOrderPage() {
             How to use:
           </h3>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Add items using the form above</li>
+            <li>• Start typing to see product suggestions from the catalog</li>
+            <li>• Click suggestions to auto-fill product names and prices</li>
+            <li>• Recent items show previously used products with prices</li>
+            <li>• Price changes will show a confirmation dialog</li>
+            <li>• You can still enter custom products not in the list</li>
             <li>• Items will be added to your cart automatically</li>
             <li>• Return to the tab page to review and submit your order</li>
           </ul>
