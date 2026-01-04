@@ -40,6 +40,7 @@ interface Product {
   description: string | null;
   category: string;
   image_url?: string;
+  image_urls?: string[];
   sku?: string;
   supplier_id?: string;
 }
@@ -89,7 +90,10 @@ interface BarSettings {
   id: string;
   menu_type: 'interactive' | 'static';
   static_menu_url: string | null;
-  static_menu_type: 'pdf' | 'image' | null;
+  static_menu_type: 'pdf' | 'image' | 'slideshow' | null;
+  slideshow_settings?: {
+    transitionSpeed: number;
+  };
 }
 
 export default function MenuManagementPage() {
@@ -165,6 +169,13 @@ export default function MenuManagementPage() {
   const [menuPreview, setMenuPreview] = useState<string | null>(null);
   const [interactiveMenuCollapsed] = useState(false);
   const [staticMenuCollapsed, setStaticMenuCollapsed] = useState(false);
+
+  // Slideshow states - NEW
+  const [menuFiles, setMenuFiles] = useState<File[]>([]);
+  const [menuPreviews, setMenuPreviews] = useState<string[]>([]);
+  const [slideshowSettings, setSlideshowSettings] = useState({
+    transitionSpeed: 3000,
+  });
 
   // Helper function to get display image with category fallback - DISABLED
   /*
@@ -376,6 +387,97 @@ export default function MenuManagementPage() {
       } else {
         setMenuPreview(null);
       }
+    }
+  };
+
+  // NEW: Handle slideshow files change
+  const handleSlideshowFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    // Limit to 5 images
+    if (menuFiles.length + files.length > 5) {
+      alert('Maximum 5 images allowed for slideshow');
+      return;
+    }
+    
+    const newFiles = [...menuFiles, ...files];
+    setMenuFiles(newFiles);
+    
+    // Create previews for all images
+    files.forEach((file) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          setMenuPreviews(prev => [...prev, result]);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  // NEW: Remove slideshow image
+  const removeSlideshowImage = (index: number) => {
+    const newFiles = [...menuFiles];
+    const newPreviews = [...menuPreviews];
+    newFiles.splice(index, 1);
+    newPreviews.splice(index, 1);
+    setMenuFiles(newFiles);
+    setMenuPreviews(newPreviews);
+  };
+
+  // NEW: Handle slideshow upload
+  const handleSlideshowUpload = async () => {
+    if (!menuFiles.length || !barId) {
+      alert('Please select at least one image to upload');
+      return;
+    }
+
+    setMenuUploadLoading(true);
+    try {
+      const uploadedUrls: string[] = [];
+      
+      // Upload each image
+      for (let i = 0; i < menuFiles.length; i++) {
+        const formData = new FormData();
+        formData.append('file', menuFiles[i]);
+        formData.append('barId', barId);
+        formData.append('order', i.toString());
+
+        const response = await fetch('/api/upload-menu-image', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Upload failed');
+        }
+
+        const data = await response.json();
+        uploadedUrls.push(data.url);
+      }
+
+      // Update bar settings to use slideshow
+      const { error: updateError } = await supabase
+        .from('bars')
+        .update({
+          static_menu_type: 'slideshow',
+          slideshow_settings: slideshowSettings
+        })
+        .eq('id', barId);
+
+      if (updateError) throw updateError;
+
+      await loadBarSettings();
+      setMenuFiles([]);
+      setMenuPreviews([]);
+      alert(`✅ ${menuFiles.length} images uploaded successfully! Slideshow created.`);
+    } catch (error: any) {
+      console.error('Error uploading slideshow:', error);
+      alert('Failed to upload slideshow: ' + error.message);
+    } finally {
+      setMenuUploadLoading(false);
     }
   };
 
@@ -1368,27 +1470,86 @@ export default function MenuManagementPage() {
                 {/* Upload New Menu */}
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                   <h3 className="font-semibold text-gray-800 mb-3">
-                    {barSettings?.static_menu_url ? 'Replace Menu File' : 'Upload Menu File'}
+                    {barSettings?.static_menu_url ? 'Replace Menu' : 'Upload Menu'}
                   </h3>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Menu Type Selection */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        
+                        Menu Type
                       </label>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/webp"
-                        onChange={handleMenuFileChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        🖼️ JPEG, PNG, or WebP images only • Max 10MB 
-                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            setMenuFiles([]);
+                            setMenuPreviews([]);
+                          }}
+                          className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${
+                            menuFiles.length === 0
+                              ? 'border-purple-500 bg-purple-50 text-purple-700'
+                              : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                          }`}
+                        >
+                          <ImageIcon size={20} className="mx-auto mb-1" />
+                          Single Image
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMenuFile(null);
+                            setMenuPreview(null);
+                          }}
+                          className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${
+                            menuFiles.length > 0
+                              ? 'border-purple-500 bg-purple-50 text-purple-700'
+                              : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="mx-auto mb-1">🎞️</div>
+                          Slideshow (5 max)
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Preview */}
-                    {menuFile && (
+                    {/* Single Image Upload */}
+                    {menuFiles.length === 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Select Image File
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          onChange={handleMenuFileChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          🖼️ JPEG, PNG, or WebP images only • Max 10MB 
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Slideshow Upload */}
+                    {menuFiles.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Select up to 5 images for slideshow
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          onChange={handleSlideshowFilesChange}
+                          multiple
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          🖼️ JPEG, PNG, or WebP images only • Max 10MB each • {menuFiles.length}/5 selected
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Single Image Preview */}
+                    {menuFile && menuFiles.length === 0 && (
                       <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                         <p className="text-sm font-medium text-gray-700 mb-2">
                           Selected: {menuFile.name}
@@ -1403,22 +1564,70 @@ export default function MenuManagementPage() {
                       </div>
                     )}
 
+                    {/* Slideshow Preview Grid */}
+                    {menuPreviews.length > 0 && (
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm font-medium text-gray-700 mb-2">
+                          Selected {menuFiles.length} image(s):
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {menuPreviews.map((preview, index) => (
+                            <div key={index} className="relative">
+                              <img 
+                                src={preview} 
+                                alt={`Preview ${index + 1}`} 
+                                className="w-full h-24 object-cover rounded-lg border border-gray-300"
+                              />
+                              <button
+                                onClick={() => removeSlideshowImage(index)}
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                title="Remove image"
+                              >
+                                ×
+                              </button>
+                              <div className="absolute bottom-1 left-1 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Slideshow Settings */}
+                    {menuFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Slideshow Settings</label>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm text-blue-800 mb-1">
+                            ⚙️ Manual slideshow settings
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            • Customers swipe to navigate between slides<br/>
+                            • Slides stay static until manually changed<br/>
+                            • Pinch to zoom works on each slide<br/>
+                            • Double tap resets zoom
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Upload Button */}
-                    {menuFile && (
+                    {(menuFile || menuFiles.length > 0) && (
                       <button
-                        onClick={handleMenuUpload}
+                        onClick={menuFiles.length > 0 ? handleSlideshowUpload : handleMenuUpload}
                         disabled={menuUploadLoading}
                         className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {menuUploadLoading ? (
                           <>
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                            Uploading...
+                            Uploading {menuFiles.length > 0 ? `${menuFiles.length} images...` : '...'}
                           </>
                         ) : (
                           <>
                             <Upload size={20} />
-                            Upload Menu
+                            Upload {menuFiles.length > 0 ? `${menuFiles.length} Image${menuFiles.length > 1 ? 's' : ''} (Slideshow)` : 'Menu'}
                           </>
                         )}
                       </button>
