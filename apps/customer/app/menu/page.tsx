@@ -113,7 +113,8 @@ export default function MenuPage() {
 
   // Slideshow state for static slideshows
   const [slideshowImages, setSlideshowImages] = useState<string[]>([]);
-  const [slideshowSettings, setSlideshowSettings] = useState<{ transitionSpeed: number }>({ transitionSpeed: 3000 });
+  // Slideshow settings are read from the DB schema when present; no default transitionSpeed assumed
+  const [slideshowSettings, setSlideshowSettings] = useState<Record<string, any> | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
@@ -656,9 +657,10 @@ export default function MenuPage() {
                   const json = await resp.json();
                   console.log('✅ Slideshow API response:', json);
                   setSlideshowImages(json.images || []);
-                  setSlideshowSettings(json.settings || { transitionSpeed: 3000 });
+                  // Use settings from DB schema if present; do not assume a transition speed
+                  setSlideshowSettings(json.settings ?? null);
                   setCurrentSlideIndex(0);
-                  // Do NOT auto-play; users will control slides manually
+                  // Slideshow is manual only - no auto-play
                   setIsSlideshowPlaying(false);
 
                   // If slideshow exists, show static menu
@@ -720,21 +722,8 @@ export default function MenuPage() {
     getPendingOrderTime();
   };
 
-  // Auto-play slideshow when open and configured (only when playing)
-  useEffect(() => {
-    if (!showStaticMenu || staticMenuType !== 'slideshow') return;
-    if (!slideshowImages || slideshowImages.length <= 1) return;
-    if (!isSlideshowPlaying) return; // only when playing
-
-    const intervalMs = (slideshowSettings?.transitionSpeed || 3000);
-    const id = setInterval(() => {
-      setCurrentSlideIndex((prev) => (prev + 1) % slideshowImages.length);
-    }, intervalMs);
-
-    return () => {
-      clearInterval(id);
-    };
-  }, [showStaticMenu, staticMenuType, slideshowImages, slideshowSettings, isSlideshowPlaying]);
+  // REMOVED: Auto-play slideshow useEffect entirely
+  // Slideshow is now manual-only, controlled by user clicks
 
   const handleCloseTab = async () => {
     try {
@@ -1484,7 +1473,7 @@ export default function MenuPage() {
                       </div>
                     </div>
                   ) : staticMenuType === 'slideshow' ? (
-                    // Slideshow viewer
+                    // Slideshow viewer - MANUAL ONLY (no auto-play)
                     <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
                       <div className="flex-1 overflow-hidden flex items-center justify-center p-4 relative">
                         {slideshowImages.length === 0 ? (
@@ -1533,15 +1522,11 @@ export default function MenuPage() {
                           ))}
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setIsSlideshowPlaying((p) => !p)}
-                            className="px-2 py-1 bg-gray-100 rounded"
-                          >
-                            {isSlideshowPlaying ? 'Pause' : 'Play'}
-                          </button>
+                          {/* Play/Pause button removed since slideshow is manual only */}
                           <button
                             onClick={handleImageFitWidth}
                             className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                            title="Fit to width"
                           >
                             <Maximize2 size={14} />
                           </button>

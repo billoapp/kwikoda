@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
       .single();
 
     const imageUrls = images?.map((img: SlideRow) => img.image_url) || [];
-    const settings = barData?.slideshow_settings || { transitionSpeed: 3000 };
+    // Use the stored settings if present; do not assume transitionSpeed by default
+    const settings = barData?.slideshow_settings ?? null;
 
     return NextResponse.json({ images: imageUrls, settings });
   } catch (error: any) {

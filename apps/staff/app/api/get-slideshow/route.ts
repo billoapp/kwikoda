@@ -74,9 +74,8 @@ export async function GET(req: NextRequest) {
     }
 
     const imageUrls = images?.map((img: SlideRow) => img.image_url) || [];
-    const settings = barData?.slideshow_settings || {
-      transitionSpeed: 3000,
-    };
+    // Respect stored settings on the bar; do not synthesize a transition speed default
+    const settings = barData?.slideshow_settings ?? null;
 
     return NextResponse.json({
       images: imageUrls,

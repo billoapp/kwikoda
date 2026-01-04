@@ -174,9 +174,11 @@ export default function SettingsPage() {
     setEditMode(false);
   };
 
+  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://tabz-mteja.vercel.app';
+
   const handleCopyQRUrl = () => {
     if (barInfo.slug) {
-      const url = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
+      const url = `${customerOrigin}/menu?bar=${barInfo.slug}`;
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -190,7 +192,7 @@ export default function SettingsPage() {
         return;
       }
 
-      const qrData = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
+      const qrData = `${customerOrigin}/menu?bar=${barInfo.slug}`;
       
       const printContent = `
         <!DOCTYPE html>
@@ -351,7 +353,7 @@ export default function SettingsPage() {
     );
   }
 
-  const qrUrl = barInfo.slug ? `https://mteja.vercel.app/?bar=${barInfo.slug}` : '';
+  const qrUrl = barInfo.slug ? `${customerOrigin}/menu?bar=${barInfo.slug}` : '';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
@@ -501,7 +503,7 @@ export default function SettingsPage() {
                       <code className="text-sm text-gray-600 break-all">{barInfo.slug || '(No slug)'}</code>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Used in QR code: mteja.vercel.app/?bar={barInfo.slug}
+                      Used in QR code: {customerOrigin}/menu?bar={barInfo.slug}
                     </p>
                   </div>
 
