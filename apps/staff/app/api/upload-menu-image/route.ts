@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 // Initialize Supabase client with existing environment variable pattern
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+const SUPABASE_MENU_BUCKET = process.env.SUPABASE_MENU_BUCKET || 'menu-images';
 
 if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
   throw new Error('Missing Supabase environment variables');
@@ -16,6 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 
 export async function POST(req: NextRequest) {
   console.log('🚀 UPLOAD-MENU-IMAGE API STARTED');
+  console.log('🧰 Using Supabase bucket:', SUPABASE_MENU_BUCKET);
   
   try {
     // Use the native Next Request formData API (compatible with fetch FormData)
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
     console.log('📤 Uploading to Supabase Storage:', fileName);
 
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('menu-images')
+      .from(SUPABASE_MENU_BUCKET)
       .upload(fileName, buffer, {
         contentType: file.type || 'application/octet-stream',
         upsert: false,
@@ -57,6 +59,9 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) {
       console.error('❌ Upload error:', uploadError);
+      if ((uploadError?.message || '').toLowerCase().includes('bucket')) {
+        return NextResponse.json({ error: `Bucket '${SUPABASE_MENU_BUCKET}' not found in Supabase project ${SUPABASE_URL}. Create the bucket or set SUPABASE_MENU_BUCKET to an existing bucket.` }, { status: 500 });
+      }
       return NextResponse.json({ error: uploadError.message || 'Storage upload failed' }, { status: 500 });
     }
 
@@ -64,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
-      .from('menu-images')
+      .from(SUPABASE_MENU_BUCKET)
       .getPublicUrl(fileName);
 
     console.log('🔗 Public URL generated:', publicUrl);
