@@ -577,6 +577,23 @@ export default function MenuManagementPage() {
     */
   }, [barProducts.length]);
 
+  // RENDER: Single image preview helper to avoid JSX type widening
+  const renderSingleImagePreview = (): React.ReactNode => {
+    if (!menuFile || menuFiles.length !== 0) return null;
+    return (
+      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <p className="text-sm font-medium text-gray-700 mb-2">Selected: {menuFile.name}</p>
+        {menuPreview && (
+          <img
+            src={menuPreview}
+            alt="Preview"
+            className="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-white mt-2"
+          />
+        )}
+      </div>
+    );
+  };
+
   // DISABLED: Product filtering
   /*
   const filteredProducts = products.filter((product) => {
@@ -1581,21 +1598,7 @@ export default function MenuManagementPage() {
                     )}
 
                     {/* Single Image Preview */}
-                      {menuFile && menuFiles.length === 0 && (
-                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <p className="text-sm font-medium text-gray-700 mb-2">
-                            Selected: {menuFile.name}
-                          </p>
-
-                          {menuPreview && (
-                            <img
-                              src={menuPreview}
-                              alt="Preview"
-                              className="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-white mt-2"
-                            />
-                          )}
-                        </div>
-                      )}
+                      {renderSingleImagePreview()}
 
 
                     {/* Slideshow Preview Grid */}
@@ -1647,7 +1650,7 @@ export default function MenuManagementPage() {
                     )}
 
                     {/* Upload Button */}
-                    {(uploadMode === 'single' && menuFile) || (uploadMode === 'slideshow' && menuFiles.length > 0) && (
+                    {((uploadMode === 'single' && !!menuFile) || (uploadMode === 'slideshow' && menuFiles.length > 0)) && (
                       <button
                         onClick={uploadMode === 'slideshow' ? handleSlideshowUpload : handleMenuUpload}
                         disabled={menuUploadLoading}
