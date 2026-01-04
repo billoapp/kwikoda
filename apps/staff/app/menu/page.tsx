@@ -505,8 +505,28 @@ export default function MenuManagementPage() {
       }
 
       await loadBarSettings();
+
+      // Fetch the persisted slideshow images so staff sees the saved preview immediately
+      try {
+        const statusResp = await fetch(`/api/admin/slideshow-status?barId=${barId}`);
+        if (statusResp.ok) {
+          const json = await statusResp.json();
+          if (json?.images && Array.isArray(json.images)) {
+            setMenuPreviews(json.images.map((i: any) => i.image_url));
+          } else {
+            // Fall back to response from /api/get-slideshow
+            const getResp = await fetch(`/api/get-slideshow?barId=${barId}`);
+            if (getResp.ok) {
+              const getJson = await getResp.json();
+              setMenuPreviews(getJson.images || []);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch slideshow status after upload', err);
+      }
+
       setMenuFiles([]);
-      setMenuPreviews([]);
 
       alert(`✅ ${data.uploaded.length} images uploaded successfully! Slideshow created.`);
     } catch (error: any) {
