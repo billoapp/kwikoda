@@ -488,11 +488,13 @@ export default function MenuManagementPage() {
         throw new Error('Unexpected response from upload endpoint');
       }
 
-      // Update bar settings to use slideshow
+      // Update bar settings to use slideshow (mark bar as static so customer UI will display it)
       const { error: updateError } = await supabase
         .from('bars')
         .update({
+          menu_type: 'static',
           static_menu_type: 'slideshow',
+          static_menu_url: null,
           slideshow_settings: slideshowSettings,
         })
         .eq('id', barId);

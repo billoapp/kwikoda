@@ -23,13 +23,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'barId is required' }, { status: 400 });
     }
 
-    // Get slideshow images
-    const { data: images, error: imagesError } = await supabase
+    // Get slideshow images. Prefer `display_order` but fall back to legacy `order` if necessary.
+    let images: any = null;
+    let imagesError: any = null;
+
+    // Try using display_order first
+    let res = await supabase
       .from('slideshow_images')
-      .select('image_url, order')
+      .select('image_url, display_order')
       .eq('bar_id', barId)
       .eq('active', true)
-      .order('order', { ascending: true });
+      .order('display_order', { ascending: true });
+
+    images = (res as any).data;
+    imagesError = (res as any).error;
+
+    if (imagesError) {
+      const msg = (imagesError?.message || '').toLowerCase();
+      // If display_order column doesn't exist, retry using legacy `order` column
+      if (msg.includes('column "display_order"') || msg.includes("could not find the 'display_order'") || msg.includes('unknown column') || msg.includes('column "order"')) {
+        console.warn('⚠️ display_order column missing; falling back to legacy `order` column for slideshow images');
+        const res2 = await supabase
+          .from('slideshow_images')
+          .select('image_url, "order"')
+          .eq('bar_id', barId)
+          .eq('active', true)
+          .order('"order"', { ascending: true });
+
+        images = (res2 as any).data;
+        imagesError = (res2 as any).error;
+      }
+    }
 
     if (imagesError) {
       console.error('Images fetch error:', imagesError);

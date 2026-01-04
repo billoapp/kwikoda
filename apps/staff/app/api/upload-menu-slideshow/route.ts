@@ -154,6 +154,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Update bar record so customer UI shows the slideshow (set menu_type, clear single image URL, store settings)
+    try {
+      const settings = settingsStr ? JSON.parse(settingsStr) : { transitionSpeed: 3000 };
+      const { error: updateError } = await supabase
+        .from('bars')
+        .update({
+          menu_type: 'static',
+          static_menu_type: 'slideshow',
+          static_menu_url: null,
+          slideshow_settings: settings,
+        })
+        .eq('id', barId);
+
+      if (updateError) {
+        console.error('❌ Failed to update bar settings for slideshow:', updateError);
+        return NextResponse.json({ error: updateError.message || 'Failed to update bar settings' }, { status: 500 });
+      }
+
+      console.log(`🔁 Replaced ${uploadedUrls.length} slideshow images for bar ${barId} and set menu_type='static' (slideshow)`);
+    } catch (err) {
+      console.error('❌ Unexpected error updating bar settings:', err);
+      return NextResponse.json({ error: (err as any).message || 'Failed to update bar settings' }, { status: 500 });
+    }
+
     // Optionally update bars static menu type here OR let the client do it
     console.log('🎉 All files uploaded', { uploadedCount: uploadedItems.length });
 

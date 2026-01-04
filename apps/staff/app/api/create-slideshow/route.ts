@@ -22,14 +22,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'barId is required' }, { status: 400 });
     }
 
-    // Update bar settings to use slideshow
+    // Update bar settings to use slideshow (set menu_type so customers see it)
+    const settingsToSave = settings || { transitionSpeed: 3000 };
     const { error: barError } = await supabase
       .from('bars')
       .update({
+        menu_type: 'static',
         static_menu_type: 'slideshow',
-        slideshow_settings: settings || {
-          transitionSpeed: 3000,
-        }
+        static_menu_url: null,
+        slideshow_settings: settingsToSave,
       })
       .eq('id', barId);
 

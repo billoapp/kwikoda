@@ -111,6 +111,12 @@ export default function MenuPage() {
   const [imageScale, setImageScale] = useState(1);
   const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
 
+  // Slideshow state for static slideshows
+  const [slideshowImages, setSlideshowImages] = useState<string[]>([]);
+  const [slideshowSettings, setSlideshowSettings] = useState<{ transitionSpeed: number }>({ transitionSpeed: 3000 });
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
+
   const loadAttempted = useRef(false);
 
   // Helper function to get display image with category fallback
@@ -631,9 +637,27 @@ export default function MenuPage() {
             setStaticMenuUrl((barData as any).static_menu_url);
             setStaticMenuType((barData as any).static_menu_type);
             
-            // Auto-show static menu if menu type is static
-            if ((barData as any).menu_type === 'static' && (barData as any).static_menu_url) {
+            // Auto-show static menu if menu_type is static and either a single URL exists OR it's a slideshow
+            if ((barData as any).menu_type === 'static' && ((barData as any).static_menu_url || (barData as any).static_menu_type === 'slideshow')) {
               setShowStaticMenu(true);
+            }
+
+            // If this is a slideshow, fetch the slideshow images and settings
+            if ((barData as any).static_menu_type === 'slideshow') {
+              try {
+                const resp = await fetch(`/api/get-slideshow?barId=${(fullTab as any).bar.id}`);
+                if (resp.ok) {
+                  const json = await resp.json();
+                  setSlideshowImages(json.images || []);
+                  setSlideshowSettings(json.settings || { transitionSpeed: 3000 });
+                  setCurrentSlideIndex(0);
+                  setIsSlideshowPlaying(true);
+                } else {
+                  console.warn('Failed to fetch slideshow images', resp.status);
+                }
+              } catch (err) {
+                console.warn('Error fetching slideshow images', err);
+              }
             }
           }
         } catch (error) {
@@ -647,6 +671,22 @@ export default function MenuPage() {
     }
     getPendingOrderTime();
   };
+
+  // Auto-play slideshow when open and configured (only when playing)
+  useEffect(() => {
+    if (!showStaticMenu || staticMenuType !== 'slideshow') return;
+    if (!slideshowImages || slideshowImages.length <= 1) return;
+    if (!isSlideshowPlaying) return; // only when playing
+
+    const intervalMs = (slideshowSettings?.transitionSpeed || 3000);
+    const id = setInterval(() => {
+      setCurrentSlideIndex((prev) => (prev + 1) % slideshowImages.length);
+    }, intervalMs);
+
+    return () => {
+      clearInterval(id);
+    };
+  }, [showStaticMenu, staticMenuType, slideshowImages, slideshowSettings, isSlideshowPlaying]);
 
   const handleCloseTab = async () => {
     try {
@@ -1395,9 +1435,68 @@ export default function MenuPage() {
                         <p className="text-sm">PDF menu viewing is currently unavailable. Please ask staff for assistance or use the interactive menu.</p>
                       </div>
                     </div>
+                  ) : staticMenuType === 'slideshow' ? (
+                    // Slideshow viewer
+                    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
+                      <div className="flex-1 overflow-hidden flex items-center justify-center p-4 relative">
+                        {slideshowImages.length === 0 ? (
+                          <div className="text-center text-gray-500">No slideshow images available</div>
+                        ) : (
+                          <img
+                            src={slideshowImages[currentSlideIndex]}
+                            alt={`Slide ${currentSlideIndex + 1}`}
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
+                            style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
+                          />
+                        )}
+
+                        {slideshowImages.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setCurrentSlideIndex((idx) => (idx - 1 + slideshowImages.length) % slideshowImages.length)}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
+                            >
+                              ‹
+                            </button>
+                            <button
+                              onClick={() => setCurrentSlideIndex((idx) => (idx + 1) % slideshowImages.length)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
+                            >
+                              ›
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Footer: indicators & controls */}
+                      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-between gap-2 shrink-0">
+                        <div className="flex items-center gap-2">
+                          {slideshowImages.map((_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setCurrentSlideIndex(i)}
+                              className={`w-2 h-2 rounded-full ${i === currentSlideIndex ? 'bg-orange-500' : 'bg-gray-300'}`}
+                              title={`Go to slide ${i + 1}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setIsSlideshowPlaying((p) => !p)}
+                            className="px-2 py-1 bg-gray-100 rounded"
+                          >
+                            {isSlideshowPlaying ? 'Pause' : 'Play'}
+                          </button>
+                          <button
+                            onClick={handleImageFitWidth}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                          >
+                            <Maximize2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    // <PDFViewer pdfUrl={staticMenuUrl} />
-                  // ) : (
                     // Image viewer with zoom
                     <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
                       {/* Image Content */}
