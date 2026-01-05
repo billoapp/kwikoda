@@ -9,19 +9,19 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://tabeza.co.ke'), // Update with your actual domain
   
   title: {
-    default: 'Tabeza Venue - Bar Management System',
+    default: 'Tabeza Venue - Digital Tab System',
     template: '%s | Tabeza Venue',
   },
   
-  description: 'Professional bar and restaurant management system for Kenyan venues. Track tabs, manage orders, process payments, and eliminate revenue loss. 100% free forever.',
+  description: 'Professional tab management system for Kenyan venues. Track tabs, manage orders, process payments, and eliminate revenue loss. 100% free forever.',
   
   keywords: [
-    'bar management Kenya',
-    'restaurant POS system',
+    'tab management Kenya',
+    'restaurant tab system',
     'digital bar tabs',
     'tab management software',
     'Kenya hospitality tech',
-    'bar revenue tracking',
+    'tab revenue tracking',
     'M-Pesa payments',
     'restaurant management',
     'Nairobi bars',
@@ -51,22 +51,16 @@ export const metadata: Metadata = {
     locale: 'en_KE',
     url: 'https://staff.tabeza.co.ke',
     siteName: 'Tabeza Venue',
-    title: 'Tabeza Venue - Professional Bar Management',
+    title: 'Tabeza Venue - Digital Tab System',
     description: 'Eliminate revenue loss. Track every tab. Process payments seamlessly. Join hundreds of Kenyan venues using Tabeza. 100% free forever.',
     images: [
       {
-        url: '/og-banner-staff.png', // We'll create this
+        url: '/og-banner-staff.png',
         width: 1200,
         height: 630,
-        alt: 'Tabeza - Professional Bar & Restaurant Management System',
+        alt: 'Tabeza - Digital Tab Management System',
         type: 'image/png',
-      },
-      {
-        url: '/logo-512.png', // Fallback
-        width: 512,
-        height: 512,
-        alt: 'Tabeza Logo',
-        type: 'image/png',
+        secureUrl: 'https://staff.tabeza.co.ke/og-banner-staff.png',
       },
     ],
   },
@@ -74,9 +68,9 @@ export const metadata: Metadata = {
   // Twitter Card
   twitter: {
     card: 'summary_large_image',
-    title: 'Tabeza Venue - Professional Bar Management',
+    title: 'Tabeza Venue - Digital Tab System',
     description: 'Eliminate revenue loss. Track every tab. 100% free forever.',
-    images: ['/og-banner-staff.png'],
+    images: ['https://staff.tabeza.co.ke/og-banner-staff.png'],
     creator: '@tabeza_ke', // Add your Twitter handle if you have one
     site: '@tabeza_ke',
   },
@@ -94,12 +88,6 @@ export const metadata: Metadata = {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
       { url: '/logo.svg', type: 'image/svg+xml' },
-      { url: '/logo-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/logo-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/logo.png', sizes: '180x180', type: 'image/png' },
-      { url: '/logo-512.png', sizes: '512x512', type: 'image/png' },
     ],
     shortcut: '/favicon.ico',
   },
