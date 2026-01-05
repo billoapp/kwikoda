@@ -5,7 +5,6 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { TokensService } from '@tabeza/shared';
 import { 
   getDeviceId, 
   getBarDeviceKey, 
@@ -329,17 +328,7 @@ function ConsentContent() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && barId) {
-          const tokensService = new TokensService(supabase);
-          const awarded = await tokensService.awardFirstConnectionTokens(user.id, barId);
-          
-          if (awarded) {
-            console.log('🪙 Awarded first connection tokens');
-            showToast({
-              type: 'success',
-              title: 'Welcome Bonus!',
-              message: '+50 tokens for connecting to this venue!'
-            });
-          }
+          // Token functionality removed - tokens are in tokens branch
         }
       } catch (error) {
         console.error('Error awarding first connection tokens:', error);
@@ -351,6 +340,9 @@ function ConsentContent() {
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
+      if (tabNumber) sessionStorage.setItem('tabNumber', tabNumber.toString());
+      sessionStorage.setItem('ownerIdentifier', tab.owner_identifier);
+      sessionStorage.setItem('status', tab.status);
       
       showToast({
         type: 'success',
