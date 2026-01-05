@@ -48,6 +48,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.39.7
         version: 2.89.0
+      '@tabeza/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       lucide-react:
         specifier: ^0.462.0
         version: 0.462.0(react@19.2.3)
