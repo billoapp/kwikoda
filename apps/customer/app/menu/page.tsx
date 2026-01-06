@@ -1436,8 +1436,8 @@ export default function MenuPage() {
             {/* Menu Header - UPDATED text */}
             <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
-                <h2 className="text-sm font-semibold text-gray-700">Viewer</h2>
-                <p className="text-xs text-gray-500">View image menu</p>
+                <h2 className="text-sm font-semibold text-gray-700">Specials</h2>
+                <p className="text-xs text-gray-500">View special offers</p>
               </div>
               <button
                 onClick={toggleStaticMenu}
