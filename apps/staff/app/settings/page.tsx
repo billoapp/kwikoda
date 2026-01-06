@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Smartphone, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -25,12 +25,28 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
-  
+
   const [notifications, setNotifications] = useState({
     newOrders: false,
     pendingApprovals: false,
     payments: false
   });
+
+  const [paymentSettings, setPaymentSettings] = useState({
+    cashEnabled: true,
+    mpesaEnabled: false,
+    cardEnabled: false,
+    mpesaTillNumber: '',
+    mpesaPaybillNumber: '',
+    mpesaPasskey: '',
+    cardProvider: ''
+  });
+
+  const [showMpesaSettings, setShowMpesaSettings] = useState(false);
+  const [showCardSettings, setShowCardSettings] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackEmail, setFeedbackEmail] = useState('');
 
   useEffect(() => {
     loadBarInfo();
@@ -47,7 +63,7 @@ export default function SettingsPage() {
   const loadBarInfo = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         console.error('No authenticated user');
         router.push('/login');
@@ -55,7 +71,7 @@ export default function SettingsPage() {
       }
 
       const userBarId = user.user_metadata?.bar_id;
-      
+
       if (!userBarId) {
         console.error('No bar_id in user metadata');
         alert('Your account is not linked to a bar. Please contact administrator.');
@@ -90,13 +106,31 @@ export default function SettingsPage() {
         email: data.email || '',
         slug: data.slug || ''
       };
-      
+
       const incomplete = !info.slug || !info.name;
       setIsNewUser(incomplete);
       setEditMode(incomplete);
-      
+
       setBarInfo(info);
       setEditedInfo(info);
+
+      // Load notification settings
+      setNotifications({
+        newOrders: data.notification_new_orders || false,
+        pendingApprovals: data.notification_pending_approvals || false,
+        payments: data.notification_payments || false
+      });
+
+      // Load payment settings
+      setPaymentSettings({
+        cashEnabled: data.payment_cash_enabled !== false, // default true
+        mpesaEnabled: data.payment_mpesa_enabled || false,
+        cardEnabled: data.payment_card_enabled || false,
+        mpesaTillNumber: data.mpesa_till_number || '',
+        mpesaPaybillNumber: data.mpesa_paybill_number || '',
+        mpesaPasskey: data.mpesa_passkey || '',
+        cardProvider: data.card_provider || ''
+      });
     } catch (error) {
       console.error('Error loading bar info:', error);
       alert('Failed to load bar information');
@@ -114,7 +148,7 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user || !user.user_metadata?.bar_id) {
         alert('Authentication error. Please log in again.');
         router.push('/login');
@@ -122,7 +156,7 @@ export default function SettingsPage() {
       }
 
       const userBarId = user.user_metadata.bar_id;
-      const fullLocation = editedInfo.city 
+      const fullLocation = editedInfo.city
         ? `${editedInfo.location}, ${editedInfo.city}`
         : editedInfo.location;
 
@@ -147,7 +181,18 @@ export default function SettingsPage() {
           phone: editedInfo.phone,
           email: editedInfo.email,
           slug: slug,
-          active: true
+          active: true,
+          // Save notification settings
+          notification_new_orders: notifications.newOrders,
+          notification_pending_approvals: notifications.pendingApprovals,
+          notification_payments: notifications.payments,
+          // Save payment settings
+          payment_cash_enabled: paymentSettings.cashEnabled,
+          payment_mpesa_enabled: paymentSettings.mpesaEnabled,
+          payment_card_enabled: paymentSettings.cardEnabled,
+          mpesa_till_number: paymentSettings.mpesaTillNumber,
+          mpesa_paybill_number: paymentSettings.mpesaPaybillNumber,
+          card_provider: paymentSettings.cardProvider
         })
         .eq('id', userBarId);
 
@@ -162,6 +207,72 @@ export default function SettingsPage() {
       alert('Failed to save changes. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      const { error } = await supabase
+        .from('bars')
+        .update({
+          // Save notification settings
+          notification_new_orders: notifications.newOrders,
+          notification_pending_approvals: notifications.pendingApprovals,
+          notification_payments: notifications.payments,
+          // Save payment settings
+          payment_cash_enabled: paymentSettings.cashEnabled,
+          payment_mpesa_enabled: paymentSettings.mpesaEnabled,
+          payment_card_enabled: paymentSettings.cardEnabled,
+          mpesa_till_number: paymentSettings.mpesaTillNumber,
+          mpesa_paybill_number: paymentSettings.mpesaPaybillNumber,
+          mpesa_passkey: paymentSettings.mpesaPasskey,
+          card_provider: paymentSettings.cardProvider
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      alert('✅ Settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestMpesa = async () => {
+    try {
+      const phone = prompt('Enter phone number to receive STK (2547...)');
+      if (!phone) return;
+      const amount = prompt('Enter amount (KES) to test', '1');
+      if (!amount || isNaN(Number(amount))) return alert('Invalid amount');
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !user.user_metadata?.bar_id) return alert('Authentication error');
+      const userBarId = user.user_metadata.bar_id;
+
+      const res = await fetch('/api/payments/mpesa/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barId: userBarId, amount: Number(amount), phone })
+      });
+      const json = await res.json();
+      if (!res.ok) return alert('Test failed: ' + JSON.stringify(json));
+      alert('STK sent, response: ' + JSON.stringify(json.result || json));
+    } catch (err: any) {
+      console.error('Test M-Pesa error', err);
+      alert('Test failed: ' + String(err));
     }
   };
 
@@ -193,7 +304,7 @@ export default function SettingsPage() {
       }
 
       const qrData = `${customerOrigin}/menu?bar=${barInfo.slug}`;
-      
+
       const printContent = `
         <!DOCTYPE html>
         <html>
@@ -301,7 +412,7 @@ export default function SettingsPage() {
           <div class="qr-container">
             <h1>${barInfo.name}</h1>
             <p class="subtitle">Scan to View Menu & Order</p>
-            
+
             <div class="qr-code">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png" alt="QR Code" />
             </div>
@@ -360,7 +471,7 @@ export default function SettingsPage() {
       <div className="w-full lg:max-w-[80%] max-w-full">
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
           {!isNewUser && (
-            <button 
+            <button
               onClick={() => router.push('/')}
               className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
             >
@@ -376,7 +487,7 @@ export default function SettingsPage() {
         {isNewUser && (
           <div className="p-4">
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
-              <AlertCircle size={24} className="text-blue-600 flex-shrink-0 mt-1" />
+              <AlertCircle size={24} className="mx-auto mb-3 text-blue-600" />
               <div>
                 <p className="font-semibold text-blue-900 mb-1">Welcome to Tabeza!</p>
                 <p className="text-sm text-blue-800">
@@ -421,7 +532,7 @@ export default function SettingsPage() {
                   <input
                     type="text"
                     value={editedInfo.name}
-                    onChange={(e) => setEditedInfo({...editedInfo, name: e.target.value})}
+                    onChange={(e) => setEditedInfo({ ...editedInfo, name: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                 ) : (
@@ -437,7 +548,7 @@ export default function SettingsPage() {
                   <input
                     type="text"
                     value={editedInfo.location}
-                    onChange={(e) => setEditedInfo({...editedInfo, location: e.target.value})}
+                    onChange={(e) => setEditedInfo({ ...editedInfo, location: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                 ) : (
@@ -453,7 +564,7 @@ export default function SettingsPage() {
                   <input
                     type="text"
                     value={editedInfo.city}
-                    onChange={(e) => setEditedInfo({...editedInfo, city: e.target.value})}
+                    onChange={(e) => setEditedInfo({ ...editedInfo, city: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                 ) : (
@@ -469,7 +580,7 @@ export default function SettingsPage() {
                   <input
                     type="tel"
                     value={editedInfo.phone}
-                    onChange={(e) => setEditedInfo({...editedInfo, phone: e.target.value})}
+                    onChange={(e) => setEditedInfo({ ...editedInfo, phone: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                 ) : (
@@ -485,7 +596,7 @@ export default function SettingsPage() {
                   <input
                     type="email"
                     value={editedInfo.email}
-                    onChange={(e) => setEditedInfo({...editedInfo, email: e.target.value})}
+                    onChange={(e) => setEditedInfo({ ...editedInfo, email: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                 ) : (
@@ -557,7 +668,7 @@ export default function SettingsPage() {
                   <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
                     <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
                       <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
-                        <img 
+                        <img
                           src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
                           alt={`${barInfo.name} QR Code`}
                           className="w-full h-full"
@@ -626,7 +737,7 @@ export default function SettingsPage() {
                   <input
                     type="checkbox"
                     checked={notifications.newOrders}
-                    onChange={(e) => setNotifications({...notifications, newOrders: e.target.checked})}
+                    onChange={(e) => setNotifications({ ...notifications, newOrders: e.target.checked })}
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
@@ -636,7 +747,7 @@ export default function SettingsPage() {
                   <input
                     type="checkbox"
                     checked={notifications.pendingApprovals}
-                    onChange={(e) => setNotifications({...notifications, pendingApprovals: e.target.checked})}
+                    onChange={(e) => setNotifications({ ...notifications, pendingApprovals: e.target.checked })}
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
@@ -646,10 +757,203 @@ export default function SettingsPage() {
                   <input
                     type="checkbox"
                     checked={notifications.payments}
-                    onChange={(e) => setNotifications({...notifications, payments: e.target.checked})}
+                    onChange={(e) => setNotifications({ ...notifications, payments: e.target.checked })}
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={saving}
+                  className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                >
+                  <Save size={20} />
+                  {saving ? 'Saving...' : 'Save Notification Settings'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <CreditCard size={20} className="text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Payment Management</h3>
+                  <p className="text-sm text-gray-500">Configure customer payment options</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Cash - Always enabled for info */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <DollarSign size={20} className="text-green-600" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">Cash Payments</span>
+                        <p className="text-xs text-gray-500">Standard - Received inside Tab ID</p>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                      Always Active
+                    </div>
+                  </div>
+                </div>
+
+                {/* M-Pesa Toggle */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <Smartphone size={20} className="text-blue-600" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">M-Pesa Payments</span>
+                        <p className="text-xs text-gray-500">Mobile money integration</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setPaymentSettings({ ...paymentSettings, mpesaEnabled: !paymentSettings.mpesaEnabled });
+                        if (!paymentSettings.mpesaEnabled) {
+                          setShowMpesaSettings(true);
+                        } else {
+                          setShowMpesaSettings(false);
+                        }
+                      }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        paymentSettings.mpesaEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          paymentSettings.mpesaEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {showMpesaSettings && (
+                    <div className="mt-3 space-y-2 pl-8 border-l-2 border-blue-200">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Till Number</label>
+                        <input
+                          type="text"
+                          value={paymentSettings.mpesaTillNumber}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, mpesaTillNumber: e.target.value })}
+                          placeholder="Enter M-Pesa till number"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Paybill Number (Optional)</label>
+                        <input
+                          type="text"
+                          value={paymentSettings.mpesaPaybillNumber}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, mpesaPaybillNumber: e.target.value })}
+                          placeholder="Enter M-Pesa paybill number"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Passkey (secret)</label>
+                        <input
+                          type="password"
+                          value={paymentSettings.mpesaPasskey}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, mpesaPasskey: e.target.value })}
+                          placeholder="Enter M-Pesa passkey (kept secret)"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Passkey is secret and will only be used by server-side code to create STK requests.</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSaveSettings}
+                          className="text-sm text-green-600 font-medium"
+                        >
+                          Save M-Pesa Settings
+                        </button>
+
+                        <button
+                          onClick={() => handleTestMpesa()}
+                          className="text-sm text-blue-600 font-medium"
+                        >
+                          Test M-Pesa
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Payments Toggle */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <CreditCard size={20} className="text-purple-600" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">Card Payments</span>
+                        <p className="text-xs text-gray-500">Credit/Debit card processing</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setPaymentSettings({ ...paymentSettings, cardEnabled: !paymentSettings.cardEnabled });
+                        if (!paymentSettings.cardEnabled) {
+                          setShowCardSettings(true);
+                        } else {
+                          setShowCardSettings(false);
+                        }
+                      }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        paymentSettings.cardEnabled ? 'bg-purple-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          paymentSettings.cardEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {showCardSettings && (
+                    <div className="mt-3 space-y-2 pl-8 border-l-2 border-purple-200">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Payment Provider</label>
+                        <select
+                          value={paymentSettings.cardProvider}
+                          onChange={(e) => setPaymentSettings({ ...paymentSettings, cardProvider: e.target.value })}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                        >
+                          <option value="">Select provider</option>
+                          <option value="stripe">Stripe</option>
+                          <option value="flutterwave">Flutterwave</option>
+                          <option value="paystack">Paystack</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={saving}
+                  className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                >
+                  <Save size={20} />
+                  {saving ? 'Saving...' : 'Save Payment Settings'}
+                </button>
+                <p className="text-xs text-center text-gray-500 mt-2">
+                  These settings control what payment options customers see
+                </p>
               </div>
             </div>
           )}
@@ -657,7 +961,7 @@ export default function SettingsPage() {
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm">
               <button
-                onClick={() => alert('Email feedback to: support@Tabeza.com')}
+                onClick={() => setShowFeedbackModal(true)}
                 className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
               >
                 <div className="flex items-center gap-3">
@@ -666,7 +970,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="text-left">
                     <p className="font-semibold text-gray-800">Send Feedback</p>
-                    <p className="text-sm text-gray-500">conversationapps@gmail.com</p>
+                    <p className="text-sm text-gray-500">Help us improve Tabeza</p>
                   </div>
                 </div>
                 <ArrowRight size={20} className="text-gray-400" />
@@ -675,6 +979,70 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Send Feedback</h3>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
+                <input
+                  type="email"
+                  value={feedbackEmail}
+                  onChange={(e) => setFeedbackEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Feedback Message</label>
+                <textarea
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value)}
+                  placeholder="Tell us what you think, report issues, or suggest features..."
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const subject = encodeURIComponent('Tabeza Feedback');
+                    const body = encodeURIComponent(`Email: ${feedbackEmail}\n\n${feedbackMessage}`);
+                    window.location.href = `mailto:support@tabeza.com?subject=${subject}&body=${body}`;
+                    setShowFeedbackModal(false);
+                    setFeedbackMessage('');
+                    setFeedbackEmail('');
+                  }}
+                  disabled={!feedbackMessage.trim()}
+                  className="flex-1 bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300"
+                >
+                  Send Email
+                </button>
+                <button
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

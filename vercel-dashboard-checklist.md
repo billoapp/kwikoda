@@ -22,6 +22,15 @@ Look for these exact variable names and verify their values:
 - **Expected**: `sb_publishable_sS8TJmpBNLw5fAHNfTb9og_EurMoc49`
 - **Environment**: Production, Preview, Development (all checked)
 
+### ✅ M-PESA (Daraja) variables
+- `MPESA_CONSUMER_KEY` - Daraja consumer key (used server-side)
+- `MPESA_CONSUMER_SECRET` - Daraja consumer secret (used server-side)
+- `MPESA_PASSKEY` - Global passkey (optional if per-bar passkey is stored)
+- `MPESA_BASE_URL` - Optional; defaults to Daraja sandbox URL. Set to production URL in prod.
+- `MPESA_CALLBACK_URL` - Public callback URL registered in your Daraja app (e.g. `https://api.tabeza.com/api/payments/mpesa/callback`)
+
+> 💡 Note: For security, **do not** expose `MPESA_CONSUMER_SECRET` or `MPESA_PASSKEY` to the browser (do not prefix with NEXT_PUBLIC_)
+
 ## Step 3: Common Issues to Check
 
 ### Issue 1: Wrong Variable Names
