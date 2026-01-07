@@ -15,15 +15,19 @@ const tempFormatCurrency = (amount: number | string): string => {
   }).format(number)}`;
 };
 
-// Title case helper - capitalizes each word except symbols
+// Title case helper - capitalizes each word
 const toTitleCase = (str: string): string => {
   return str.toLowerCase().split(' ').map(word => {
-    // Check if word is all symbols (like ml, kg, etc)
+    // Skip empty words
+    if (!word.trim()) return word;
+    
+    // Check if word is all non-letters (like ml, kg, etc) - keep as is
     if (/^[^a-zA-Z]+$/.test(word)) {
       return word.toLowerCase();
     }
+    
     // Capitalize first letter of regular words
-    return word.charAt(0).toUpperCase() + word.slice(1);
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
   }).join(' ');
 };
 
@@ -168,11 +172,13 @@ export default function QuickOrderPage() {
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setCurrentName(value);
-    filterProducts(value);
+    // Apply real-time capitalization as user types
+    const capitalizedValue = toTitleCase(value);
+    setCurrentName(capitalizedValue);
+    filterProducts(capitalizedValue);
     
     // Hide suggestions when field is empty
-    if (!value.trim()) {
+    if (!capitalizedValue.trim()) {
       setShowSuggestions(false);
     } else {
       setShowSuggestions(true);
@@ -294,7 +300,8 @@ export default function QuickOrderPage() {
   */
 
   const useRecentProduct = (product: QuickProduct) => {
-    setCurrentName(product.name);
+    const formattedName = toTitleCase(product.name);
+    setCurrentName(formattedName);
     setCurrentPrice(product.price.toString());
     setCurrentQuantity('1');
     setShowRecent(false);
@@ -369,18 +376,7 @@ export default function QuickOrderPage() {
                   id="productName"
                   type="text"
                   value={currentName}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCurrentName(value);
-                    filterProducts(value); // Add JSON autocomplete
-                    // Hide recent products when field is empty
-                    if (!value.trim()) {
-                      setShowRecent(false);
-                      setShowSuggestions(false);
-                    } else {
-                      setShowSuggestions(true);
-                    }
-                  }}
+                  onChange={handleNameChange}
                   onKeyPress={(e) => handleKeyPress(e, 'name')}
                   onFocus={() => setShowRecent(true)}
                   onBlur={() => setShowRecent(false)}
