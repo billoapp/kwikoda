@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ToastProvider } from '@/components/ui/Toast';
-import { BarProvider } from '@/contexts/page';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 export const dynamic = 'force-dynamic';
@@ -32,10 +31,8 @@ export default function RootLayout({
       </head>
       <body>
         <ToastProvider>
-          <BarProvider>
-            <PWAInstallPrompt />
-            {children}
-          </BarProvider>
+          <PWAInstallPrompt />
+          {children}
         </ToastProvider>
       </body>
     </html>

@@ -13,15 +13,15 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
     // Get subscriptions for the specified devices
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
-      .in('device_id', `(${deviceIds.join(',')})`);
+      .in('device_id', deviceIds);
 
     if (error) {
       console.error('❌ Database error fetching subscriptions:', error);
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
                 data: data,
                 actions: data?.actions || []
               }
-            }
+            })
           });
 
           if (!response.ok) {
@@ -65,12 +65,12 @@ export async function POST(request: NextRequest) {
           return { success: true, messageId: result.message_id };
         } catch (error) {
           console.error('❌ Error sending push notification to:', subscription.endpoint);
-          return { success: false, error: error.message };
+          return { success: false, error: (error as Error).message };
         }
       })
     );
 
-    const successful = results.filter(r => r.success).length;
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
     const failed = results.length - successful;
 
     return NextResponse.json({

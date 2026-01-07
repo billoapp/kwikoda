@@ -14,7 +14,7 @@ import {
   storeActiveTab 
 } from '@/lib/deviceId';
 import { useToast } from '@/components/ui/Toast';
-import PushNotificationManager from '@/lib/PushNotificationManager';
+import PushNotificationManager from '@/lib/pushNotifications';
 
 function LandingContent() {
   const router = useRouter();
