@@ -18,6 +18,7 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('🔔 beforeinstallprompt event fired');
       e.preventDefault();
       const promptEvent = e as unknown as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
@@ -25,6 +26,18 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Check if PWA is already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('📱 PWA is already installed in standalone mode');
+    }
+
+    // Debug browser support
+    console.log('🔍 PWA support check:', {
+      serviceWorker: 'serviceWorker' in navigator,
+      beforeinstallprompt: 'onbeforeinstallprompt' in window,
+      standalone: window.matchMedia('(display-mode: standalone)').matches
+    });
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

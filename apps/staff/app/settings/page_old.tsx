@@ -364,7 +364,7 @@ export default function SettingsPage() {
               <ol>
                 <li>Open your phone camera</li>
                 <li>Point at the QR code above</li>
-                <li>Tap notification to open menu</li>
+                <li>Tap the notification to open menu</li>
                 <li>Browse, add items, and submit your order</li>
               </ol>
             </div>
@@ -703,84 +703,6 @@ export default function SettingsPage() {
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
-              </div>
-            </div>
-          )}
-
-          {!isNewUser && (
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <CreditCard size={20} className="text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">Payment Methods</h3>
-                  <p className="text-sm text-gray-500">Control what payment options customers see</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <Phone size={20} className="text-green-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">M-Pesa</span>
-                      <p className="text-xs text-gray-500">Mobile money payments</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={paymentSettings.mpesa_enabled}
-                    onChange={(e) => setPaymentSettings({...paymentSettings, mpesa_enabled: e.target.checked})}
-                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <CreditCard size={20} className="text-blue-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">Credit/Debit Card</span>
-                      <p className="text-xs text-gray-500">Card payments</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={paymentSettings.card_enabled}
-                    onChange={(e) => setPaymentSettings({...paymentSettings, card_enabled: e.target.checked})}
-                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <DollarSign size={20} className="text-yellow-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">Cash</span>
-                      <p className="text-xs text-gray-500">Physical cash payments</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={paymentSettings.cash_enabled}
-                    onChange={(e) => setPaymentSettings({...paymentSettings, cash_enabled: e.target.checked})}
-                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button
-                  onClick={handleSavePaymentSettings}
-                  disabled={savingPaymentSettings}
-                  className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
-                >
-                  <Save size={20} />
-                  {savingPaymentSettings ? 'Saving...' : 'Save Payment Settings'}
-                </button>
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  At least one payment method must be enabled
-                </p>
               </div>
             </div>
           )}

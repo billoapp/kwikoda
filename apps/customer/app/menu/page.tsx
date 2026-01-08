@@ -91,6 +91,12 @@ export default function MenuPage() {
     message: string;
   }>({ show: false, orderTotal: '', message: '' });
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
+  const [paymentSettings, setPaymentSettings] = useState({
+    mpesa_enabled: true,
+    card_enabled: true,
+    cash_enabled: true
+  });
+  const [loadingPaymentSettings, setLoadingPaymentSettings] = useState(true);
   const { showToast } = useToast();
   
   // Telegram messaging state
@@ -497,6 +503,58 @@ export default function MenuPage() {
     loadTabData();
   }, []);
 
+  const loadPaymentSettings = async (barId: string) => {
+    try {
+      console.log('💳 Loading payment settings for bar:', barId);
+      const { data, error } = await supabase
+        .from('bars')
+        .select('mpesa_enabled, card_enabled, cash_enabled')
+        .eq('id', barId)
+        .single();
+
+      if (error) {
+        console.error('Error loading payment settings:', error);
+        // Use default settings if error
+        setPaymentSettings({
+          mpesa_enabled: true,
+          card_enabled: true,
+          cash_enabled: true
+        });
+      } else if (data) {
+        console.log('✅ Payment settings loaded:', data);
+        const paymentData = data as {
+          mpesa_enabled?: boolean;
+          card_enabled?: boolean;
+          cash_enabled?: boolean;
+        };
+        setPaymentSettings({
+          mpesa_enabled: paymentData.mpesa_enabled ?? true,
+          card_enabled: paymentData.card_enabled ?? true,
+          cash_enabled: paymentData.cash_enabled ?? true
+        });
+
+        // Set default payment method to first available one
+        if (paymentData.mpesa_enabled) {
+          setActivePaymentMethod('mpesa');
+        } else if (paymentData.card_enabled) {
+          setActivePaymentMethod('cards');
+        } else if (paymentData.cash_enabled) {
+          setActivePaymentMethod('cash');
+        }
+      }
+    } catch (error) {
+      console.error('Error in loadPaymentSettings:', error);
+      // Use default settings
+      setPaymentSettings({
+        mpesa_enabled: true,
+        card_enabled: true,
+        cash_enabled: true
+      });
+    } finally {
+      setLoadingPaymentSettings(false);
+    }
+  };
+
   const loadTabData = async () => {
     console.log('📋 Menu page: loadTabData called');
     const tabData = sessionStorage.getItem('currentTab');
@@ -543,6 +601,12 @@ export default function MenuPage() {
       console.log('✅ Menu page: Full tab loaded:', fullTab);
       setTab(fullTab as Tab);
       setBarName((fullTab as any).bar?.name || 'Bar');
+      
+      // Load payment settings for this bar
+      if ((fullTab as any).bar?.id) {
+        loadPaymentSettings((fullTab as any).bar.id);
+      }
+      
       let name = 'Your Tab';
       if ((fullTab as any).notes) {
         try {
@@ -1703,42 +1767,48 @@ export default function MenuPage() {
           {!paymentCollapsed && (
             <div className="bg-white rounded-lg border border-gray-100 p-4">
               <div className="flex border-b border-gray-200 mb-4">
-                <button
-                  onClick={() => setActivePaymentMethod('mpesa')}
-                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                      ? 'text-orange-500 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} />
-                    M-Pesa
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActivePaymentMethod('cards')}
-                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
-                      ? 'text-orange-500 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <CreditCardIcon size={16} />
-                    Cards
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActivePaymentMethod('cash')}
-                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
-                      ? 'text-orange-500 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <DollarSign size={16} />
-                    Cash
-                  </div>
-                </button>
+                {paymentSettings.mpesa_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('mpesa')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} />
+                      M-Pesa
+                    </div>
+                  </button>
+                )}
+                {paymentSettings.card_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('cards')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CreditCardIcon size={16} />
+                      Cards
+                    </div>
+                  </button>
+                )}
+                {paymentSettings.cash_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('cash')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={16} />
+                      Cash
+                    </div>
+                  </button>
+                )}
               </div>
               {activePaymentMethod === 'cards' && (
                 <div className="flex items-center justify-between mb-4">
@@ -1841,7 +1911,15 @@ export default function MenuPage() {
                     Digital Payments Coming Soon
                   </button>
                   <p className="text-xs text-gray-500 text-center mt-2">
-                    Please pay at the bar using cash, M-Pesa, Airtel Money, or cards
+                    Please pay at the bar using
+                    {(() => {
+                      const methods = [];
+                      if (paymentSettings.cash_enabled) methods.push('cash');
+                      if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
+                      if (paymentSettings.card_enabled) methods.push('cards');
+                      if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
+                      return methods.join(', ');
+                    })()}
                   </p>
                 </div>
               </div>
