@@ -72,7 +72,7 @@ const getFeedbackEmailHTML = (data: {
 <body>
   <div class="container">
     <div class="header">
-      <h1 style="margin: 0; font-size: 24px;">📬 New Feedback from Tabeza Staff</h1>
+      <h1 style="margin: 0; font-size: 24px;">📬 New Feedback to Tabeza</h1>
     </div>
     <div class="content">
       <div class="field">
@@ -167,7 +167,7 @@ const getConfirmationEmailHTML = (data: {
       </p>
       
       <p style="margin-top: 20px; color: #059669; font-weight: bold;">
-        - The Tabeza Team
+        - Tabeza Team
       </p>
     </div>
   </div>
@@ -252,11 +252,10 @@ export async function POST(request: NextRequest) {
       cc: email
     });
 
-    // Send email to support WITH copy to sender
+    // Send email to support team
     const { data: supportEmailData, error: supportError } = await resend.emails.send({
       from: `Tabeza Support <${fromEmail}>`,
       to: [supportEmail],
-      cc: [email], // Copy sender
       subject: `Tabeza Feedback from ${name} (${barName})`,
       html: getFeedbackEmailHTML(emailData),
       replyTo: email
@@ -271,7 +270,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Feedback emails sent successfully:', supportEmailData);
+    // Send confirmation email to sender
+    const { data: confirmationData, error: confirmationError } = await resend.emails.send({
+      from: `Tabeza Support <${fromEmail}>`,
+      to: [email],
+      subject: 'Thank you for your Tabeza feedback!',
+      html: getConfirmationEmailHTML({ name, message })
+    });
+
+    if (confirmationError) {
+      console.error('❌ Error sending confirmation email:', confirmationError);
+      // Don't fail the whole request if confirmation fails, but log it
+      console.error('❌ Confirmation error details:', JSON.stringify(confirmationError, null, 2));
+    }
+
+    console.log('✅ Feedback emails sent successfully:', { 
+      supportEmail: supportEmailData, 
+      confirmationEmail: confirmationData 
+    });
 
     // Return success
     return NextResponse.json(
