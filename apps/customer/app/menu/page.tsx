@@ -96,6 +96,11 @@ export default function MenuPage() {
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [selectedRejectionReason, setSelectedRejectionReason] = useState<string>('');
 
+  // Debug: Monitor showRejectModal changes
+  useEffect(() => {
+    console.log('🚫 showRejectModal changed to:', showRejectModal);
+  }, [showRejectModal]);
+
   // Rejection reasons enum (max 3 as requested)
   const rejectionReasons = [
     { value: 'wrong_items', label: 'Wrong items ordered' },
@@ -887,9 +892,18 @@ export default function MenuPage() {
   };
 
   const handleRejectOrder = (orderId: string) => {
+    console.log('🚫 handleRejectOrder called with orderId:', orderId);
+    console.log('🚫 Current showRejectModal state before:', showRejectModal);
+    console.log('🚫 Current rejectingOrderId state before:', rejectingOrderId);
+    
     setRejectingOrderId(orderId);
     setSelectedRejectionReason('');
     setShowRejectModal(true);
+    
+    // Force a re-render log
+    setTimeout(() => {
+      console.log('🚫 showRejectModal state after setTimeout should be true');
+    }, 100);
   };
 
   const confirmRejectOrder = async () => {
@@ -2219,8 +2233,71 @@ export default function MenuPage() {
               onClick={() => setMessageSentModal(false)}
               className="w-full bg-green-500 text-white py-3 rounded-xl font-medium hover:bg-green-600"
             >
-              OK
+              Close
             </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Rejection Reason Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Reject Order</h3>
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              Please select a reason for rejecting this staff order:
+            </p>
+            
+            <div className="space-y-2 mb-6">
+              {rejectionReasons.map((reason) => (
+                <label
+                  key={reason.value}
+                  className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-orange-300 transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="rejectionReason"
+                    value={reason.value}
+                    checked={selectedRejectionReason === reason.value}
+                    onChange={(e) => setSelectedRejectionReason(e.target.value)}
+                    className="w-4 h-4 text-orange-500 focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">{reason.label}</span>
+                </label>
+              ))}
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRejectOrder}
+                disabled={!selectedRejectionReason || approvingOrder === rejectingOrderId}
+                className="flex-1 bg-red-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {approvingOrder === rejectingOrderId ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Rejecting...
+                  </>
+                ) : (
+                  'Reject Order'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
