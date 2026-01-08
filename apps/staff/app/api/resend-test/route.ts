@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Simple test email
     const { data, error } = await resend.emails.send({
-      from: fromEmail,
+      from: `Tabeza Support <${fromEmail}>`,
       to: [supportEmail],
       cc: [email],
       subject: `Test: Tabeza Feedback from ${name}`,

@@ -249,13 +249,12 @@ export async function POST(request: NextRequest) {
     console.log('📧 Sending feedback emails...', {
       from: fromEmail,
       to: supportEmail,
-      cc: email,
-      subject: `Tabeza Feedback from ${name} (${barName})`
+      cc: email
     });
 
     // Send email to support WITH copy to sender
     const { data: supportEmailData, error: supportError } = await resend.emails.send({
-      from: fromEmail,
+      from: `Tabeza Support <${fromEmail}>`,
       to: [supportEmail],
       cc: [email], // Copy sender
       subject: `Tabeza Feedback from ${name} (${barName})`,
