@@ -28,13 +28,16 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
 
   useEffect(() => {
     if (isOpen) {
-      scrollToBottom();
+      scrollToTop();
     }
   }, [messages, isOpen]);
 
-  const scrollToBottom = () => {
+  const scrollToTop = () => {
     setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const container = document.querySelector('.messages-container');
+      if (container) {
+        container.scrollTop = 0;
+      }
     }, 100);
   };
 
@@ -145,7 +148,7 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto h-[calc(100vh-180px)] p-4">
+        <div className="messages-container flex-1 overflow-y-auto h-[calc(100vh-180px)] p-4 flex flex-col-reverse">
           {messages.length === 0 ? (
             <div className="text-center py-12">
               <MessageCircle size={48} className="mx-auto text-gray-300 mb-4" />
@@ -153,7 +156,7 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
               <p className="text-gray-500">Start a conversation with staff</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 flex flex-col-reverse">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -198,7 +201,6 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
