@@ -177,12 +177,17 @@ const getConfirmationEmailHTML = (data: {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('📧 Feedback API called');
+    
     // Parse request body
     const body = await request.json();
     const { name, email, barName, message } = body;
 
+    console.log('📧 Request data:', { name, email, barName, messageLength: message?.length });
+
     // Validation
     if (!name || !email || !message) {
+      console.log('❌ Validation failed: missing fields');
       return NextResponse.json(
         { error: 'Missing required fields: name, email, and message are required' },
         { status: 400 }
@@ -192,11 +197,21 @@ export async function POST(request: NextRequest) {
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
+      console.log('❌ Validation failed: invalid email');
       return NextResponse.json(
         { error: 'Invalid email address' },
         { status: 400 }
       );
     }
+
+    // Check environment variables
+    console.log('🔧 Environment check:', {
+      hasApiKey: !!process.env.RESEND_API_KEY,
+      hasFromEmail: !!process.env.RESEND_FROM_EMAIL,
+      hasSupportEmail: !!process.env.RESEND_SUPPORT_EMAIL,
+      fromEmail: process.env.RESEND_FROM_EMAIL,
+      supportEmail: process.env.RESEND_SUPPORT_EMAIL
+    });
 
     // Check if Resend API key is configured
     if (!process.env.RESEND_API_KEY) {
