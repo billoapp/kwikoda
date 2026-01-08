@@ -49,6 +49,7 @@ export default function SettingsPage() {
   });
   const [sendingFeedback, setSendingFeedback] = useState(false);
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
 
   useEffect(() => {
     loadBarInfo();
@@ -283,22 +284,24 @@ export default function SettingsPage() {
 
       alert('✅ Notification settings saved!');
     } catch (error) {
-      console.error('Error saving notification settings:', error);
-      alert('Failed to save notification settings. Please try again.');
+      setFeedbackError('Failed to save notification settings. Please try again.');
     }
   };
 
   const handleSendFeedback = async () => {
+    // Clear previous errors
+    setFeedbackError('');
+    
     // Validation
     if (!feedbackForm.name.trim() || !feedbackForm.email.trim() || !feedbackForm.message.trim()) {
-      alert('❌ Please fill in all fields');
+      setFeedbackError('Please fill in all fields');
       return;
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(feedbackForm.email)) {
-      alert('❌ Please enter a valid email address');
+      setFeedbackError('Please enter a valid email address');
       return;
     }
 
@@ -332,11 +335,12 @@ export default function SettingsPage() {
       setTimeout(() => {
         setFeedbackSuccess(false);
         setShowFeedbackModal(false);
+        setFeedbackError('');
       }, 3000);
 
     } catch (error: any) {
       console.error('Error sending feedback:', error);
-      alert(`❌ Failed to send feedback: ${error.message}`);
+      setFeedbackError(error.message || 'Failed to send feedback. Please try again.');
     } finally {
       setSendingFeedback(false);
     }
@@ -997,6 +1001,14 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {feedbackError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-red-600" />
+                        <p className="text-sm text-red-800">{feedbackError}</p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Your Name <span className="text-red-500">*</span>
