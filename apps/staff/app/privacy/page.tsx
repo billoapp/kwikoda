@@ -165,7 +165,7 @@ export default function PrivacyPage() {
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <p className="flex items-center gap-2 text-gray-700">
                 <Mail size={16} className="text-orange-500" />
-                <strong>Data Protection Officer:</strong> billo.mobile.app@gmail.com
+                <strong>Data Protection Officer:</strong> support@tabeza.co.ke
               </p>
               <p className="flex items-center gap-2 text-gray-700">
                 <Phone size={16} className="text-orange-500" />
@@ -177,7 +177,7 @@ export default function PrivacyPage() {
               </p>
               <p className="flex items-center gap-2 text-gray-700">
                 <Eye size={16} className="text-orange-500" />
-                <strong>Office of the Data Protection Commissioner:</strong> billo.mobile.app@gmail.com
+                <strong>Office of the Data Protection Commissioner:</strong> support@tabeza.co.ke
               </p>
             </div>
 

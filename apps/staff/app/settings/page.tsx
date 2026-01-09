@@ -1,9 +1,9 @@
-// apps/staff/app/settings/page.tsx - 80% width layout
+// apps/staff/app/settings/page.tsx - Fixed payment column names
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,29 @@ export default function SettingsPage() {
     pendingApprovals: false,
     payments: false
   });
+
+  // FIXED: Using correct database column names
+  const [paymentSettings, setPaymentSettings] = useState({
+    payment_mpesa_enabled: false,
+    payment_card_enabled: false,
+    payment_cash_enabled: true
+  });
+  const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
+  
+  // Feedback form state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    name: '',
+    email: '',
+    message: ''
+  });
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
+
+  // Pro feature modal state
+  const [showProModal, setShowProModal] = useState(false);
+  const [proFeature, setProFeature] = useState('');
 
   useEffect(() => {
     loadBarInfo();
@@ -97,6 +120,30 @@ export default function SettingsPage() {
       
       setBarInfo(info);
       setEditedInfo(info);
+      
+      // Pre-fill feedback form with user info
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser?.email) {
+        setFeedbackForm(prev => ({
+          ...prev,
+          name: info.name || '',
+          email: currentUser.email || ''
+        }));
+      }
+      
+      // FIXED: Load payment settings with correct column names
+      setPaymentSettings({
+        payment_mpesa_enabled: data.payment_mpesa_enabled ?? false,
+        payment_card_enabled: data.payment_card_enabled ?? false,
+        payment_cash_enabled: data.payment_cash_enabled ?? true
+      });
+      
+      // Load notification settings
+      setNotifications({
+        newOrders: data.notification_new_orders ?? false,
+        pendingApprovals: data.notification_pending_approvals ?? false,
+        payments: data.notification_payments ?? false
+      });
     } catch (error) {
       console.error('Error loading bar info:', error);
       alert('Failed to load bar information');
@@ -174,7 +221,140 @@ export default function SettingsPage() {
     setEditMode(false);
   };
 
-  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_URL || 'https://app.tabeza.co.ke';
+  const handleSavePaymentSettings = async () => {
+    // Validate that at least one payment method is enabled
+    if (!paymentSettings.payment_mpesa_enabled && 
+        !paymentSettings.payment_card_enabled && 
+        !paymentSettings.payment_cash_enabled) {
+      alert('❌ At least one payment method must be enabled.');
+      return;
+    }
+
+    setSavingPaymentSettings(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      const { error } = await supabase
+        .from('bars')
+        .update({
+          payment_mpesa_enabled: paymentSettings.payment_mpesa_enabled,
+          payment_card_enabled: paymentSettings.payment_card_enabled,
+          payment_cash_enabled: paymentSettings.payment_cash_enabled
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      alert('✅ Payment settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving payment settings:', error);
+      alert('Failed to save payment settings. Please try again.');
+    } finally {
+      setSavingPaymentSettings(false);
+    }
+  };
+
+  const handleSaveNotificationSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      const { error } = await supabase
+        .from('bars')
+        .update({
+          notification_new_orders: notifications.newOrders,
+          notification_pending_approvals: notifications.pendingApprovals,
+          notification_payments: notifications.payments
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      alert('✅ Notification settings saved!');
+    } catch (error) {
+      setFeedbackError('Failed to save notification settings. Please try again.');
+    }
+  };
+
+  const handleProFeature = (feature: string) => {
+    setProFeature(feature);
+    setShowProModal(true);
+  };
+
+  const handleSendFeedback = async () => {
+    // Clear previous errors
+    setFeedbackError('');
+    
+    // Validation
+    if (!feedbackForm.name.trim() || !feedbackForm.email.trim() || !feedbackForm.message.trim()) {
+      setFeedbackError('Please fill in all fields');
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(feedbackForm.email)) {
+      setFeedbackError('Please enter a valid email address');
+      return;
+    }
+
+    setSendingFeedback(true);
+    
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: feedbackForm.name,
+          email: feedbackForm.email,
+          barName: barInfo.name || 'Not specified',
+          message: feedbackForm.message
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send feedback');
+      }
+
+      // Success!
+      setFeedbackSuccess(true);
+      setFeedbackForm(prev => ({ ...prev, message: '' })); // Clear message only
+      
+      // Auto-close success modal after 3 seconds
+      setTimeout(() => {
+        setFeedbackSuccess(false);
+        setShowFeedbackModal(false);
+        setFeedbackError('');
+      }, 3000);
+
+    } catch (error: any) {
+      console.error('Error sending feedback:', error);
+      setFeedbackError(error.message || 'Failed to send feedback. Please try again.');
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
+
+  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://app.tabeza.co.ke';
 
   const handleCopyQRUrl = () => {
     if (barInfo.slug) {
@@ -388,6 +568,7 @@ export default function SettingsPage() {
         )}
 
         <div className="p-4 space-y-4">
+          {/* Restaurant Information Section */}
           <div className="bg-white rounded-xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -540,6 +721,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* QR Code Section */}
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -608,6 +790,94 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Payment Settings Section - FIXED */}
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <CreditCard size={20} className="text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Payment Methods</h3>
+                  <p className="text-sm text-gray-500">Choose which payment methods to accept</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <Phone size={20} className="text-green-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">M-Pesa</span>
+                      <p className="text-xs text-gray-500">Mobile money payments</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                      Pro
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={paymentSettings.payment_mpesa_enabled}
+                      onChange={() => handleProFeature('M-Pesa Payments')}
+                      className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                    />
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <CreditCard size={20} className="text-blue-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Card Payments</span>
+                      <p className="text-xs text-gray-500">Credit/Debit cards</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                      Pro
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={paymentSettings.payment_card_enabled}
+                      onChange={() => handleProFeature('Card Payments')}
+                      className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                    />
+                  </div>
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <DollarSign size={20} className="text-orange-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Cash Payment</span>
+                      <p className="text-xs text-gray-500">Pay at counter</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={paymentSettings.payment_cash_enabled}
+                    onChange={(e) => setPaymentSettings({
+                      ...paymentSettings, 
+                      payment_cash_enabled: e.target.checked
+                    })}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+              </div>
+
+              <button
+                onClick={handleSavePaymentSettings}
+                disabled={savingPaymentSettings}
+                className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                <Save size={20} />
+                {savingPaymentSettings ? 'Saving...' : 'Save Payment Settings'}
+              </button>
+            </div>
+          )}
+
+          {/* Notifications Section */}
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex items-center gap-3 mb-4">
@@ -616,65 +886,270 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800">Notifications</h3>
-                  <p className="text-sm text-gray-500">Alert preferences (default: off)</p>
+                  <p className="text-sm text-gray-500">Choose what notifications to receive</p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <span className="text-sm font-medium text-gray-700">New Orders</span>
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <Bell size={18} className="text-blue-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">New Orders</span>
+                      <p className="text-xs text-gray-500">Get notified when customers place orders</p>
+                    </div>
+                  </div>
                   <input
                     type="checkbox"
                     checked={notifications.newOrders}
-                    onChange={(e) => setNotifications({...notifications, newOrders: e.target.checked})}
+                    onChange={(e) => setNotifications({
+                      ...notifications, 
+                      newOrders: e.target.checked
+                    })}
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
 
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle size={18} className="text-yellow-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
+                      <p className="text-xs text-gray-500">Notify about pending order approvals</p>
+                    </div>
+                  </div>
                   <input
                     type="checkbox"
                     checked={notifications.pendingApprovals}
-                    onChange={(e) => setNotifications({...notifications, pendingApprovals: e.target.checked})}
+                    onChange={(e) => setNotifications({
+                      ...notifications, 
+                      pendingApprovals: e.target.checked
+                    })}
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
 
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <span className="text-sm font-medium text-gray-700">Payment Received</span>
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <CreditCard size={18} className="text-green-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Payment Updates</span>
+                      <p className="text-xs text-gray-500">Notify about payment status changes</p>
+                    </div>
+                  </div>
                   <input
                     type="checkbox"
                     checked={notifications.payments}
-                    onChange={(e) => setNotifications({...notifications, payments: e.target.checked})}
+                    onChange={(e) => setNotifications({
+                      ...notifications, 
+                      payments: e.target.checked
+                    })}
                     className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
                   />
                 </label>
               </div>
+
+              <button
+                onClick={handleSaveNotificationSettings}
+                className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 flex items-center justify-center gap-2"
+              >
+                <Save size={20} />
+                Save Notification Settings
+              </button>
             </div>
           )}
 
+          {/* Feedback Section */}
           {!isNewUser && (
-            <div className="bg-white rounded-xl shadow-sm">
-              <button
-                onClick={() => alert('Email feedback to: support@Tabeza.com')}
-                className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-yellow-100 rounded-lg">
-                    <MessageSquare size={20} className="text-yellow-600" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-800">Send Feedback</p>
-                    <p className="text-sm text-gray-500">conversationapps@gmail.com</p>
-                  </div>
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <MessageSquare size={20} className="text-indigo-600" />
                 </div>
-                <ArrowRight size={20} className="text-gray-400" />
+                <div>
+                  <h3 className="font-bold text-gray-800">Feedback & Support</h3>
+                  <p className="text-sm text-gray-500">Share your experience or report issues</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowFeedbackModal(true)}
+                className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-indigo-600 hover:to-purple-700 flex items-center justify-center gap-2"
+              >
+                <MessageSquare size={20} />
+                Send Feedback
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Pro Feature Modal */}
+      {showProModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">✨</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
+                  <p className="text-sm text-gray-500">Unlock premium features</p>
+                </div>
+              </div>
+              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-gray-700 mb-3">
+                <strong>{proFeature}</strong> is a Pro feature that helps you:
+              </p>
+              <ul className="text-sm text-gray-600 space-y-2 ml-4">
+                {proFeature === 'M-Pesa Payments' ? (
+                  <>
+                    <li>• Accept mobile money payments instantly</li>
+                    <li>• Automatic payment confirmation</li>
+                    <li>• Reduced cash handling risks</li>
+                  </>
+                ) : proFeature === 'Card Payments' ? (
+                  <>
+                    <li>• Accept credit/debit card payments</li>
+                    <li>• Secure PCI-compliant processing</li>
+                    <li>• Faster checkout experience</li>
+                  </>
+                ) : (
+                  <>
+                    <li>• Advanced payment processing</li>
+                    <li>• Multiple payment options</li>
+                    <li>• Enhanced customer experience</li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowProModal(false)}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
+              >
+                Coming Soon
+              </button>
+              <button 
+                onClick={() => setShowProModal(false)}
+                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
+              >
+                Close
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              Join the waitlist • Be notified when Pro launches
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <MessageSquare size={24} className="text-indigo-600" />
+                  <h3 className="text-xl font-bold text-gray-800">Send Feedback</h3>
+                </div>
+                <button
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              {feedbackSuccess ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check size={32} className="text-green-600" />
+                  </div>
+                  <h4 className="text-lg font-bold text-gray-800 mb-2">Thank You!</h4>
+                  <p className="text-gray-600">Your feedback has been sent successfully.</p>
+                  <p className="text-sm text-gray-500 mt-4">This window will close in 3 seconds...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {feedbackError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-red-600" />
+                        <p className="text-sm text-red-800">{feedbackError}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Your Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={feedbackForm.name}
+                      onChange={(e) => setFeedbackForm({...feedbackForm, name: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      placeholder="Your name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Your Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={feedbackForm.email}
+                      onChange={(e) => setFeedbackForm({...feedbackForm, email: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      placeholder="your@email.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Your Message <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={feedbackForm.message}
+                      onChange={(e) => setFeedbackForm({...feedbackForm, message: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none resize-none h-32"
+                      placeholder="Tell us what you think, report issues, or suggest improvements..."
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleSendFeedback}
+                    disabled={sendingFeedback}
+                    className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {sendingFeedback ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={20} />
+                        Send Feedback
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

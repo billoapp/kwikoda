@@ -152,11 +152,11 @@ function ConsentContent() {
           console.warn('Failed to parse tab notes:', e);
         }
 
-        // Store tab data
+        // Store tab data - use fresh bar name from current lookup
         storeActiveTab(barId, existingTab);
         sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
         sessionStorage.setItem('displayName', displayName);
-        sessionStorage.setItem('barName', barName);
+        sessionStorage.setItem('barName', barName); // barName was set in loadBarInfo from current slug lookup
         
         showToast({
           type: 'success',
@@ -273,7 +273,65 @@ function ConsentContent() {
       let tabNumber: number | null;
       
       if (nickname.trim()) {
-        displayName = nickname.trim();
+        // Check for existing nicknames and show suggestions if conflict
+        const { data: existingNicknames } = await (supabase as any)
+          .from('tabs')
+          .select('notes')
+          .eq('bar_id', barId)
+          .eq('status', 'open')
+          .not('notes', 'is', null);
+
+        let finalNickname = nickname.trim();
+        
+        if (existingNicknames && existingNicknames.length > 0) {
+          const openNicknames = existingNicknames
+            .map((tab: any) => {
+              try {
+                const notes = JSON.parse(tab.notes || '{}');
+                return notes.display_name;
+              } catch {
+                return null;
+              }
+            })
+            .filter((name: any) => name && name.toLowerCase() === nickname.trim().toLowerCase());
+
+          if (openNicknames.length > 0) {
+            // Generate suggestions and show alert
+            const suggestions = [
+              `${nickname.trim()} ${Math.floor(Math.random() * 999) + 1}`,
+              `${nickname.trim()}_${Math.floor(Math.random() * 999) + 1}`,
+              `${nickname.trim()}-${Math.floor(Math.random() * 999) + 1}`,
+              `${nickname.trim()}#${Math.floor(Math.random() * 999) + 1}`
+            ];
+
+            const suggestionList = suggestions.map((suggestion, index) => 
+              `${index + 1}. ${suggestion}`
+            ).join('\n');
+
+            const userChoice = prompt(
+              `The nickname "${nickname.trim()}" is already in use at this bar.\n\n` +
+              `Choose one of these suggestions:\n${suggestionList}\n\n` +
+              `Enter the number (1-4) to choose, or type your own:`,
+              suggestions[0]
+            );
+
+            if (userChoice) {
+              const choiceNum = parseInt(userChoice);
+              if (choiceNum >= 1 && choiceNum <= 4) {
+                finalNickname = suggestions[choiceNum - 1];
+              } else {
+                finalNickname = userChoice.trim();
+              }
+              console.log('🔀 User chose nickname:', finalNickname);
+            } else {
+              // User cancelled, don't create tab
+              setCreating(false);
+              return;
+            }
+          }
+        }
+        
+        displayName = finalNickname;
         tabNumber = null; // Named tabs don't need numbers
         console.log('👤 Creating named tab:', displayName);
       } else {
@@ -328,8 +386,7 @@ function ConsentContent() {
         tab_number: tab.tab_number,
         status: tab.status
       });
-      sessionStorage.setItem('displayName', displayName);
-      sessionStorage.setItem('barName', barName);
+
       
       // Award first connection tokens for NEW tab only
       try {

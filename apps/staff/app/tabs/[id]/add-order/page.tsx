@@ -3,32 +3,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, Search, X, Plus, CheckCircle, RefreshCw } from 'lucide-react';
+import { ArrowRight, Search, X, Plus, CheckCircle, RefreshCw, DollarSign, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 
-const MOCK_MENU = [
-  { id: 1, name: "Tusker Lager 500ml", category: "Beer", price: 300 },
-  { id: 2, name: "White Cap 500ml", category: "Beer", price: 280 },
-  { id: 3, name: "Guinness 500ml", category: "Beer", price: 350 },
-  { id: 4, name: "Tusker Malt 500ml", category: "Beer", price: 320 },
-  { id: 5, name: "Smirnoff Vodka", category: "Spirits", price: 2500 },
-  { id: 6, name: "Johnnie Walker Red", category: "Spirits", price: 2800 },
-  { id: 7, name: "Gin & Tonic", category: "Spirits", price: 650 },
-  { id: 8, name: "Coca-Cola 300ml", category: "Soft Drinks", price: 100 },
-  { id: 9, name: "Dasani Water 500ml", category: "Soft Drinks", price: 80 },
-  { id: 101, name: "Nyama Choma", category: "Food", price: 1200 },
-  { id: 102, name: "Chicken Wings", category: "Food", price: 800 },
-  { id: 103, name: "Chips Masala", category: "Food", price: 400 },
-];
+interface ProductSuggestion {
+  id: string;
+  name: string;
+  category: string;
+  description?: string;
+  image_url?: string;
+  sku: string;
+}
 
-interface CartItem {
-  id: number;
+interface BarProduct {
+  id: string;
   name: string;
   category: string;
   price: number;
-  quantity: number;
-  type: 'catalog' | 'custom';
+  description?: string;
+  is_custom: boolean;
 }
 
 export default function AddOrderPage() {
@@ -37,11 +31,16 @@ export default function AddOrderPage() {
   const tabId = params.id as string;
   
   const [tab, setTab] = useState<any>(null);
-  const [orderCart, setOrderCart] = useState<CartItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [productName, setProductName] = useState('');
+  const [productPrice, setProductPrice] = useState('');
+  const [productCategory, setProductCategory] = useState('Food');
+  const [productDescription, setProductDescription] = useState('');
+  const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
+  const [showRecent, setShowRecent] = useState(false);
 
   useEffect(() => {
     loadTabData();
@@ -49,18 +48,23 @@ export default function AddOrderPage() {
 
   const loadTabData = async () => {
     setLoading(true);
-    
     try {
+      // Load tab with bar_id
       const { data: tabData, error } = await supabase
         .from('tabs')
-        .select('*')
+        .select('*, bar:bars(name)')
         .eq('id', tabId)
         .single();
 
       if (error) throw error;
       
-      console.log('✅ Tab loaded:', tabData);
       setTab(tabData);
+      
+      // Load existing bar products for this bar
+      if (tabData.bar_id) {
+        await loadBarProducts(tabData.bar_id);
+      }
+      
     } catch (error) {
       console.error('❌ Error loading tab:', error);
       alert('Failed to load tab. Redirecting...');
@@ -70,104 +74,289 @@ export default function AddOrderPage() {
     }
   };
 
-  const categories = ['All', ...new Set(MOCK_MENU.map(item => item.category))];
-  
-  let filteredMenu = selectedCategory === 'All' 
-    ? MOCK_MENU 
-    : MOCK_MENU.filter(item => item.category === selectedCategory);
-  
-  if (searchQuery.trim()) {
-    filteredMenu = filteredMenu.filter(item => 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }
+  const loadBarProducts = async (barId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('bar_products')
+        .select('id, name, category, sale_price, description, custom_product_id')
+        .eq('bar_id', barId)
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-  const addToCart = (item: any) => {
-    const existing = orderCart.find(c => c.id === item.id);
-    if (existing) {
-      setOrderCart(orderCart.map(c => 
-        c.id === item.id ? {...c, quantity: c.quantity + 1} : c
-      ));
-    } else {
-      setOrderCart([...orderCart, {...item, quantity: 1, type: 'catalog'}]);
+      if (error) throw error;
+
+      const formattedProducts: BarProduct[] = (data || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: p.sale_price,
+        description: p.description,
+        is_custom: !!p.custom_product_id
+      }));
+
+      setBarProducts(formattedProducts);
+      
+    } catch (error) {
+      console.error('❌ Error loading bar products:', error);
     }
   };
 
-  const updateQuantity = (id: number, delta: number) => {
-    setOrderCart(orderCart.map(item => {
-      if (item.id === id) {
-        const newQty = item.quantity + delta;
-        return newQty > 0 ? {...item, quantity: newQty} : item;
+  const searchProducts = async (query: string) => {
+    if (!query.trim()) {
+      setSuggestions([]);
+      return;
+    }
+
+    console.log('🔍 Searching global products for:', query);
+    console.log('🔍 Query length:', query.length);
+
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .ilike('name', `%${query}%`)
+        .eq('active', true)
+        .limit(10);
+
+      console.log('🔍 Global products query result:', { data, error });
+      console.log('🔍 Data length:', data?.length || 0);
+
+      if (error) {
+        console.error('❌ Error searching global products:', error);
+        return;
       }
-      return item;
-    }).filter(item => item.quantity > 0));
+
+      setSuggestions(data || []);
+      
+    } catch (err) {
+      console.error('❌ Exception in searchProducts:', err);
+      setSuggestions([]);
+    }
   };
 
-  const cartTotal = orderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const cartCount = orderCart.reduce((sum, item) => sum + item.quantity, 0);
+  const handleProductNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setProductName(value);
+    
+    if (value.trim().length >= 2) {
+      searchProducts(value);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
 
-  const handleConfirmOrder = async () => {
-    if (orderCart.length === 0) return;
+  const selectSuggestion = (product: ProductSuggestion) => {
+    setProductName(product.name);
+    setProductCategory(product.category);
+    setProductDescription(product.description || '');
+    setShowSuggestions(false);
+    // Focus on price input
+    document.getElementById('productPrice')?.focus();
+  };
+
+  const createNewProduct = async () => {
+    if (!productName.trim()) {
+      alert('Please enter a product name');
+      return;
+    }
+
+    if (!productPrice || parseFloat(productPrice) <= 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+
+    if (!tab?.bar_id) {
+      alert('No bar associated with this tab');
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      const orderItems = orderCart.map(item => ({
-        product_id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        total: item.price * item.quantity
-      }));
+      // Check if product exists in global catalog
+      const { data: existingProduct } = await supabase
+        .from('products')
+        .select('*')
+        .ilike('name', productName.trim())
+        .eq('active', true)
+        .maybeSingle();
 
-      const { error } = await supabase
-        .from('tab_orders')
-        .insert({
-          tab_id: tabId,
-          items: orderItems,
-          total: cartTotal,
-          status: 'pending',
-          initiated_by: 'staff'
-        });
+      let productId: string | undefined;
+      let customProductId: string | undefined;
+      let isCustom = false;
 
-      if (error) throw error;
+      if (existingProduct) {
+        // Product exists in global catalog
+        productId = existingProduct.id;
+        console.log('✅ Using existing global product:', existingProduct.name);
+      } else {
+        // Create custom product
+        isCustom = true;
+        
+        // Generate SKU for custom product
+        const sku = `CUSTOM-${Date.now().toString(36).toUpperCase()}`;
+        
+        const { data: newCustomProduct, error: customError } = await supabase
+          .from('custom_products')
+          .insert({
+            bar_id: tab.bar_id,
+            name: productName.trim(),
+            category: productCategory,
+            description: productDescription,
+            sku: sku,
+            active: true
+          })
+          .select()
+          .single();
 
-      console.log('✅ Staff order added - requires customer approval');
-      alert('Order sent to customer for approval!');
-      router.push(`/tabs/${tabId}`);
+        if (customError) {
+          console.error('❌ Error creating custom product:', customError);
+          
+          // Check if custom product already exists
+          if (customError.code === '23505') {
+            // Try to find existing custom product
+            const { data: existingCustom } = await supabase
+              .from('custom_products')
+              .select('*')
+              .eq('bar_id', tab.bar_id)
+              .ilike('name', productName.trim())
+              .maybeSingle();
+
+            if (existingCustom) {
+              customProductId = existingCustom.id;
+              console.log('✅ Using existing custom product:', existingCustom.name);
+            } else {
+              throw customError;
+            }
+          } else {
+            throw customError;
+          }
+        } else {
+          customProductId = newCustomProduct.id;
+          console.log('✅ Created new custom product:', newCustomProduct.name);
+        }
+      }
+
+      // Check if product already exists in bar_products
+      const { data: existingBarProduct, error: checkError } = await supabase
+        .from('bar_products')
+        .select('id')
+        .eq('bar_id', tab.bar_id)
+        .eq('active', true);
+
+      if (checkError) {
+        console.error('❌ Error checking existing bar product:', checkError);
+      }
+
+      // Use appropriate filter based on whether it's a global or custom product
+      let filterQuery = supabase
+        .from('bar_products')
+        .select('id')
+        .eq('bar_id', tab.bar_id)
+        .eq('active', true);
+
+      if (isCustom && customProductId) {
+        filterQuery = filterQuery.eq('custom_product_id', customProductId);
+      } else if (productId) {
+        filterQuery = filterQuery.eq('product_id', productId);
+      }
+
+      const { data: existingBarProducts } = await filterQuery;
+
+      if (existingBarProducts && existingBarProducts.length > 0) {
+        // Update existing bar product price
+        const { error: updateError } = await supabase
+          .from('bar_products')
+          .update({ 
+            sale_price: parseFloat(productPrice),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingBarProducts[0].id);
+
+        if (updateError) {
+          console.error('❌ Error updating bar product:', updateError);
+          throw updateError;
+        }
+        
+        console.log('✅ Updated existing bar product price');
+        
+      } else {
+        // Create new bar product
+        const barProductData: any = {
+          bar_id: tab.bar_id,
+          sale_price: parseFloat(productPrice),
+          name: productName.trim(),
+          category: productCategory,
+          description: productDescription,
+          active: true
+        };
+
+        // Add appropriate reference
+        if (isCustom && customProductId) {
+          barProductData.custom_product_id = customProductId;
+        } else if (productId) {
+          barProductData.product_id = productId;
+        } else {
+          // This shouldn't happen, but as fallback
+          barProductData.sku = `DIRECT-${Date.now().toString(36).toUpperCase()}`;
+        }
+
+        const { data: newBarProduct, error: barError } = await supabase
+          .from('bar_products')
+          .insert(barProductData)
+          .select()
+          .single();
+
+        if (barError) {
+          console.error('❌ Error creating bar product:', barError);
+          throw barError;
+        }
+
+        console.log('✅ Created new bar product:', newBarProduct);
+      }
+
+      // Refresh bar products list
+      await loadBarProducts(tab.bar_id);
+      
+      // Reset form
+      setProductName('');
+      setProductPrice('');
+      setProductCategory('Food');
+      setProductDescription('');
+      
+      // Show success message
+      alert(`✅ ${productName.trim()} added to bar menu at ${formatCurrency(parseFloat(productPrice))}!`);
+      
+      // Focus back on product name
+      document.getElementById('productName')?.focus();
       
     } catch (error) {
-      console.error('❌ Error adding order:', error);
-      alert('Failed to add order. Please try again.');
+      console.error('❌ Error creating product:', error);
+      alert('Failed to add product. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const addItemsToParentCart = () => {
-    // Add all items to parent window cart
-    orderCart.forEach(item => {
-      const cartItem = {
-        id: `${Date.now()}_${item.id}_${Math.random().toString(36).substr(2, 9)}`,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        type: 'catalog' as const
-      };
-
-      if (window.opener && window.opener.addToCart) {
-        window.opener.addToCart(cartItem);
-      } else {
-        // Fallback: store in sessionStorage
-        const cartItems = JSON.parse(sessionStorage.getItem('tab_cart_items') || '[]');
-        cartItems.push(cartItem);
-        sessionStorage.setItem('tab_cart_items', JSON.stringify(cartItems));
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (document.activeElement?.id === 'productName') {
+        document.getElementById('productPrice')?.focus();
+      } else if (document.activeElement?.id === 'productPrice') {
+        document.getElementById('productCategory')?.focus();
+      } else if (document.activeElement?.id === 'productCategory') {
+        createNewProduct();
       }
-    });
-
-    alert(`✅ ${orderCart.length} items added to cart!`);
-    router.push(`/tabs/${tabId}`);
+    }
   };
+
+  const categories = [
+    'Food', 'Beer', 'Spirits', 'Soft Drinks', 'Cocktails', 
+    'Wine', 'Shisha', 'Other'
+  ];
 
   if (loading) {
     return (
@@ -197,9 +386,9 @@ export default function AddOrderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-32">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 sticky top-0 z-20">
+      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
         <button 
           onClick={() => router.push(`/tabs/${tabId}`)}
           className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
@@ -207,160 +396,237 @@ export default function AddOrderPage() {
           <ArrowRight size={24} className="transform rotate-180" />
         </button>
         
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Add Order</h1>
-            <p className="text-orange-100">Tab #{tab.tab_number}</p>
-            <p className="text-xs text-orange-200 mt-1">🔔 Customer will approve this order</p>
-          </div>
-          {cartCount > 0 && (
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-3 py-2">
-              <p className="text-sm text-orange-100">Cart</p>
-              <p className="font-bold">{cartCount} items</p>
-            </div>
-          )}
+        <div>
+          <h1 className="text-2xl font-bold mb-1">Add Products to Bar Menu</h1>
+          <p className="text-orange-100">Tab #{tab.tab_number} • {tab.bar?.name}</p>
+          <p className="text-xs text-orange-200 mt-1">
+            🔔 Type product name to search global catalog. If not found, it becomes a custom product.
+          </p>
         </div>
       </div>
 
-      {/* Search & Categories */}
-      <div className="p-4 bg-white border-b sticky top-32 z-10">
-        <div className="relative mb-3">
-          <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search menu..."
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2"
-            >
-              <X size={20} className="text-gray-400" />
-            </button>
-          )}
-        </div>
+      <div className="max-w-4xl mx-auto p-4">
+        {/* Product Entry Form */}
+        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Plus size={20} />
+            Add New Product
+          </h2>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => {
-                setSelectedCategory(cat);
-                setSearchQuery('');
-              }}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                selectedCategory === cat 
-                  ? 'bg-orange-500 text-white' 
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Menu Items */}
-      <div className="p-4 space-y-3">
-        {filteredMenu.length === 0 ? (
-          <div className="text-center py-12">
-            <Search size={48} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">No items found</p>
-          </div>
-        ) : (
-          filteredMenu.map(item => {
-            const inCart = orderCart.find(c => c.id === item.id);
-            
-            return (
-              <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{item.name}</h3>
-                    <p className="text-orange-600 font-bold">{formatCurrency(item.price)}</p>
+          <div className="space-y-4">
+            {/* Product Name with Auto-complete */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Product Name *
+              </label>
+              <input
+                id="productName"
+                type="text"
+                value={productName}
+                onChange={handleProductNameChange}
+                onKeyPress={handleKeyPress}
+                onFocus={() => setShowSuggestions(true)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                placeholder="Start typing to search products..."
+                autoComplete="off"
+              />
+              
+              {/* Product Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                    <Search size={14} className="text-gray-500" />
+                    <span className="text-sm font-semibold text-gray-600">Global Products</span>
+                    <span className="text-xs text-gray-500 ml-auto">{suggestions.length} found</span>
                   </div>
-                  {!inCart ? (
+                  {suggestions.map((product) => (
                     <button
-                      onClick={() => addToCart(item)}
-                      className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
+                      key={product.id}
+                      onClick={() => selectSuggestion(product)}
+                      className="w-full px-3 py-3 text-left hover:bg-orange-50 border-b last:border-b-0"
                     >
-                      <Plus size={20} />
+                      <div className="font-medium text-gray-800">{product.name}</div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-gray-500">{product.category}</span>
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                          Global Product
+                        </span>
+                      </div>
+                      {product.description && (
+                        <div className="text-xs text-gray-400 mt-1 truncate">{product.description}</div>
+                      )}
                     </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="bg-gray-200 p-2 rounded-lg hover:bg-gray-300"
-                      >
-                        <X size={16} />
-                      </button>
-                      <span className="font-bold text-lg w-8 text-center">{inCart.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showSuggestions && suggestions.length === 0 && productName.trim().length >= 2 && (
+                <div className="absolute z-20 mt-1 w-full bg-white border-2 border-gray-200 rounded-lg shadow-lg">
+                  <div className="p-4 text-center">
+                    <p className="text-gray-600 mb-2">No global product found for "{productName}"</p>
+                    <p className="text-sm text-green-600 font-medium">
+                      This will be created as a custom product for your bar.
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Just set a price and click "Add to Bar Menu" below
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Price Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Price (KSh) *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                  KSh
+                </span>
+                <input
+                  id="productPrice"
+                  type="number"
+                  value={productPrice}
+                  onChange={(e) => setProductPrice(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  placeholder="0"
+                  min="0"
+                  step="1"
+                />
+              </div>
+            </div>
+
+            {/* Category Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category
+              </label>
+              <select
+                id="productCategory"
+                value={productCategory}
+                onChange={(e) => setProductCategory(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+              >
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Description (Optional) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description (Optional)
+              </label>
+              <textarea
+                value={productDescription}
+                onChange={(e) => setProductDescription(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                rows={2}
+                placeholder="Add any special notes or description..."
+              />
+            </div>
+
+            {/* Add Button */}
+            <button
+              onClick={createNewProduct}
+              disabled={submitting || !productName.trim() || !productPrice}
+              className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {submitting ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin" />
+                  Adding Product...
+                </>
+              ) : (
+                <>
+                  <DollarSign size={18} />
+                  Add to Bar Menu
+                </>
+              )}
+            </button>
+
+            <p className="text-xs text-gray-500 text-center mt-2">
+              Products added here will be available in the Quick Order menu.
+            </p>
+          </div>
+        </div>
+
+        {/* Recently Added Products */}
+        {barProducts.length > 0 && (
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Clock size={20} />
+                Recently Added ({barProducts.length})
+              </h2>
+              <button
+                onClick={() => tab?.bar_id && loadBarProducts(tab.bar_id)}
+                className="text-sm text-orange-500 hover:text-orange-600"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {barProducts.map(product => (
+                <div key={product.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-medium text-gray-800">{product.name}</h3>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                      {product.category}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-orange-600 font-bold">
+                      {formatCurrency(product.price)}
+                    </span>
+                    {product.is_custom && (
+                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">
+                        Custom
+                      </span>
+                    )}
+                  </div>
+                  {product.description && (
+                    <p className="text-xs text-gray-500 mt-2 line-clamp-2">{product.description}</p>
                   )}
                 </div>
-              </div>
-            );
-          })
+              ))}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-600 text-center">
+                These products are now available in the Quick Order menu for this bar.
+              </p>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Cart Summary - Fixed Bottom */}
-      {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-20">
-          {/* Cart Items Preview */}
-          <div className="mb-3 max-h-32 overflow-y-auto">
-            {orderCart.map(item => (
-              <div key={item.id} className="flex items-center justify-between py-1 text-sm">
-                <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Total & Confirm */}
-          <div className="flex items-center justify-between mb-3 pt-3 border-t">
-            <div>
-              <p className="text-sm text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(cartTotal)}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={addItemsToParentCart}
-                className="bg-gray-500 text-white px-4 py-4 rounded-xl font-semibold hover:bg-gray-600 flex items-center gap-2"
-              >
-                <Plus size={20} />
-                Add to Tab
-              </button>
-              <button
-                onClick={handleConfirmOrder}
-                disabled={submitting}
-                className="bg-orange-500 text-white px-6 py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <CheckCircle size={20} />
-                {submitting ? 'Submitting...' : 'Send Order'}
-              </button>
-            </div>
+      {/* Bottom Navigation */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => router.push(`/tabs/${tabId}/quick-order`)}
+              className="flex-1 bg-blue-500 text-white py-3 rounded-lg font-semibold hover:bg-blue-600 flex items-center justify-center gap-2"
+            >
+              <Search size={18} />
+              Browse Quick Order
+            </button>
+            <button
+              onClick={() => router.push(`/tabs/${tabId}`)}
+              className="flex-1 bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 flex items-center justify-center gap-2"
+            >
+              <ArrowRight size={18} className="transform rotate-180" />
+              Back to Tab
+            </button>
           </div>
         </div>
-      )}
-
-      <style jsx global>{`
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+      </div>
     </div>
   );
 }

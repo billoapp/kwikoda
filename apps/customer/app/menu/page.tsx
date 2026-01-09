@@ -92,7 +92,31 @@ export default function MenuPage() {
     orderTotal: string;
     message: string;
   }>({ show: false, orderTotal: '', message: '' });
+
+  // Rejection reason modal state
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [selectedRejectionReason, setSelectedRejectionReason] = useState<string>('');
+
+  // Debug: Monitor showRejectModal changes
+  useEffect(() => {
+    console.log('🚫 showRejectModal changed to:', showRejectModal);
+  }, [showRejectModal]);
+
+  // Rejection reasons enum (max 3 as requested)
+  const rejectionReasons = [
+    { value: 'wrong_items', label: 'Wrong items ordered' },
+    { value: 'already_ordered', label: 'Already ordered this' },
+    { value: 'change_mind', label: 'Changed my mind' }
+  ];
+
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
+  const [paymentSettings, setPaymentSettings] = useState({
+    mpesa_enabled: true,
+    card_enabled: true,
+    cash_enabled: true
+  });
+  const [loadingPaymentSettings, setLoadingPaymentSettings] = useState(true);
   const { showToast } = useToast();
   
   // Token service instance
@@ -579,6 +603,60 @@ export default function MenuPage() {
     loadTabData();
   }, []);
 
+  // FIXED: Payment settings loading with correct column names
+  const loadPaymentSettings = async (barId: string) => {
+    try {
+      console.log('💳 Loading payment settings for bar:', barId);
+      // FIXED: Use correct column names from database
+      const { data, error } = await supabase
+        .from('bars')
+        .select('payment_mpesa_enabled, payment_card_enabled, payment_cash_enabled')
+        .eq('id', barId)
+        .single();
+
+      if (error) {
+        console.error('Error loading payment settings:', error);
+        // Use default settings if error
+        setPaymentSettings({
+          mpesa_enabled: false,
+          card_enabled: false,
+          cash_enabled: true
+        });
+      } else if (data) {
+        console.log('✅ Payment settings loaded:', data);
+        const paymentData = data as {
+          payment_mpesa_enabled?: boolean;
+          payment_card_enabled?: boolean;
+          payment_cash_enabled?: boolean;
+        };
+        setPaymentSettings({
+          mpesa_enabled: paymentData.payment_mpesa_enabled ?? false,
+          card_enabled: paymentData.payment_card_enabled ?? false,
+          cash_enabled: paymentData.payment_cash_enabled ?? true
+        });
+
+        // Set default payment method to first available one
+        if (paymentData.payment_mpesa_enabled) {
+          setActivePaymentMethod('mpesa');
+        } else if (paymentData.payment_card_enabled) {
+          setActivePaymentMethod('cards');
+        } else if (paymentData.payment_cash_enabled) {
+          setActivePaymentMethod('cash');
+        }
+      }
+    } catch (error) {
+      console.error('Error in loadPaymentSettings:', error);
+      // Use default settings with only cash enabled
+      setPaymentSettings({
+        mpesa_enabled: false,
+        card_enabled: false,
+        cash_enabled: true
+      });
+    } finally {
+      setLoadingPaymentSettings(false);
+    }
+  };
+
   const loadTabData = async () => {
     console.log('📋 Menu page: loadTabData called');
     const tabData = sessionStorage.getItem('currentTab');
@@ -625,6 +703,12 @@ export default function MenuPage() {
       console.log('✅ Menu page: Full tab loaded:', fullTab);
       setTab(fullTab as Tab);
       setBarName((fullTab as any).bar?.name || 'Bar');
+      
+      // Load payment settings for this bar
+      if ((fullTab as any).bar?.id) {
+        loadPaymentSettings((fullTab as any).bar.id);
+      }
+      
       let name = 'Your Tab';
       if ((fullTab as any).notes) {
         try {
@@ -889,16 +973,38 @@ export default function MenuPage() {
     }
   };
 
-  const handleRejectOrder = async (orderId: string) => {
-    setApprovingOrder(orderId);
+  const handleRejectOrder = (orderId: string) => {
+    console.log('🚫 handleRejectOrder called with orderId:', orderId);
+    console.log('🚫 Current showRejectModal state before:', showRejectModal);
+    console.log('🚫 Current rejectingOrderId state before:', rejectingOrderId);
+    
+    setRejectingOrderId(orderId);
+    setSelectedRejectionReason('');
+    setShowRejectModal(true);
+    
+    // Force a re-render log
+    setTimeout(() => {
+      console.log('🚫 showRejectModal state after setTimeout should be true');
+    }, 100);
+  };
+
+  const confirmRejectOrder = async () => {
+    if (!rejectingOrderId || !selectedRejectionReason) {
+      alert('Please select a reason for rejection');
+      return;
+    }
+
+    setApprovingOrder(rejectingOrderId);
     try {
       const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ 
           status: 'cancelled', 
-          cancelled_at: new Date().toISOString() 
+          cancelled_at: new Date().toISOString(),
+          rejection_reason: selectedRejectionReason,
+          cancelled_by: 'customer'
         })
-        .eq('id', orderId);
+        .eq('id', rejectingOrderId);
 
       if (error) {
         console.error('Error rejecting order:', error);
@@ -906,10 +1012,13 @@ export default function MenuPage() {
         return;
       }
     } catch (error) {
-      console.error('Error in handleRejectOrder:', error);
-      alert('An error occurred while rejecting the order');
+      console.error('Error in confirmRejectOrder:', error);
+      alert('An error occurred while rejecting order');
     } finally {
       setApprovingOrder(null);
+      setShowRejectModal(false);
+      setRejectingOrderId(null);
+      setSelectedRejectionReason('');
     }
   };
 
@@ -1526,8 +1635,8 @@ export default function MenuPage() {
             {/* Menu Header - UPDATED text */}
             <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
-                <h2 className="text-sm font-semibold text-gray-700">Viewer</h2>
-                <p className="text-xs text-gray-500">View image menu</p>
+                <h2 className="text-sm font-semibold text-gray-700">Specials</h2>
+                <p className="text-xs text-gray-500">View special offers</p>
               </div>
               <button
                 onClick={toggleStaticMenu}
@@ -1793,42 +1902,48 @@ export default function MenuPage() {
           {!paymentCollapsed && (
             <div className="bg-white rounded-lg border border-gray-100 p-4">
               <div className="flex border-b border-gray-200 mb-4">
-                <button
-                  onClick={() => setActivePaymentMethod('mpesa')}
-                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                      ? 'text-orange-500 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} />
-                    M-Pesa
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActivePaymentMethod('cards')}
-                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
-                      ? 'text-orange-500 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <CreditCardIcon size={16} />
-                    Cards
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActivePaymentMethod('cash')}
-                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
-                      ? 'text-orange-500 border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <DollarSign size={16} />
-                    Cash
-                  </div>
-                </button>
+                {paymentSettings.mpesa_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('mpesa')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} />
+                      M-Pesa
+                    </div>
+                  </button>
+                )}
+                {paymentSettings.card_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('cards')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CreditCardIcon size={16} />
+                      Cards
+                    </div>
+                  </button>
+                )}
+                {paymentSettings.cash_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('cash')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={16} />
+                      Cash
+                    </div>
+                  </button>
+                )}
               </div>
               {activePaymentMethod === 'cards' && (
                 <div className="flex items-center justify-between mb-4">
@@ -1931,7 +2046,15 @@ export default function MenuPage() {
                     Digital Payments Coming Soon
                   </button>
                   <p className="text-xs text-gray-500 text-center mt-2">
-                    Please pay at the bar using cash, M-Pesa, Airtel Money, or cards
+                    Please pay at the bar using
+                    {(() => {
+                      const methods = [];
+                      if (paymentSettings.cash_enabled) methods.push('cash');
+                      if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
+                      if (paymentSettings.card_enabled) methods.push('cards');
+                      if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
+                      return methods.join(', ');
+                    })()}
                   </p>
                 </div>
               </div>
@@ -2025,16 +2148,16 @@ export default function MenuPage() {
       )}
       {showCart && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-30 flex items-end">
-          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto">
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto border-t-4 border-blue-800">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">Your Cart</h3>
-              <button onClick={() => setShowCart(false)}><X size={24} /></button>
+              <h3 className="text-xl font-bold text-white">Your Cart</h3>
+              <button onClick={() => setShowCart(false)} className="text-white hover:bg-blue-800 p-2 rounded-lg transition-colors"><X size={24} /></button>
             </div>
             <div className="space-y-3 mb-4">
               {cart.map(item => (
                 <div key={item.bar_product_id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-2xl">
                         {item.category === 'Beer' ? '🍺' :
                           item.category === 'Wine' ? '🍷' :
@@ -2044,24 +2167,24 @@ export default function MenuPage() {
                       </span>
                     </div>
                     <div>
-                      <p className="font-semibold">{item.name}</p>
-                      <p className="text-sm text-gray-600">{tempFormatCurrency(item.price)}</p>
+                      <p className="font-semibold text-white">{item.name}</p>
+                      <p className="text-sm text-blue-200">{tempFormatCurrency(item.price)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-gray-100 p-1 rounded"><Minus size={16} /></button>
-                    <span className="font-bold w-8 text-center">{item.quantity}</span>
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-orange-500 text-white p-1 rounded"><Plus size={16} /></button>
+                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-blue-800 text-white p-1 rounded hover:bg-blue-900 transition-colors"><Minus size={16} /></button>
+                    <span className="font-bold w-8 text-center text-white">{item.quantity}</span>
+                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-green-500 text-white p-1 rounded hover:bg-green-600 transition-colors"><Plus size={16} /></button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t pt-4">
+            <div className="border-t border-blue-400 pt-4">
               <div className="flex justify-between mb-4">
-                <span className="font-bold">Total</span>
-                <span className="text-xl font-bold text-orange-600">{tempFormatCurrency(cartTotal)}</span>
+                <span className="font-bold text-white">Total</span>
+                <span className="text-xl font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
               </div>
-              <button onClick={confirmOrder} disabled={submittingOrder} className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300">
+              <button onClick={confirmOrder} disabled={submittingOrder} className="w-full bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 disabled:bg-gray-400 transition-colors">
                 {submittingOrder ? 'Submitting...' : 'Confirm Order'}
               </button>
             </div>
@@ -2069,10 +2192,10 @@ export default function MenuPage() {
         </div>
       )}
       {cartCount > 0 && (
-        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-orange-500 text-white rounded-full p-4 shadow-lg hover:bg-orange-600 flex items-center gap-2 z-20">
+        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-20 border-2 border-blue-300">
           <ShoppingCart size={24} />
           <span className="font-bold">{cartCount}</span>
-          <span className="ml-2 font-bold">{tempFormatCurrency(cartTotal)}</span>
+          <span className="ml-2 font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
         </button>
       )}
       {acceptanceModal.show && (
@@ -2200,8 +2323,71 @@ export default function MenuPage() {
               onClick={() => setMessageSentModal(false)}
               className="w-full bg-green-500 text-white py-3 rounded-xl font-medium hover:bg-green-600"
             >
-              OK
+              Close
             </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Rejection Reason Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Reject Order</h3>
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              Please select a reason for rejecting this staff order:
+            </p>
+            
+            <div className="space-y-2 mb-6">
+              {rejectionReasons.map((reason) => (
+                <label
+                  key={reason.value}
+                  className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-orange-300 transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="rejectionReason"
+                    value={reason.value}
+                    checked={selectedRejectionReason === reason.value}
+                    onChange={(e) => setSelectedRejectionReason(e.target.value)}
+                    className="w-4 h-4 text-orange-500 focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">{reason.label}</span>
+                </label>
+              ))}
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRejectOrder}
+                disabled={!selectedRejectionReason || approvingOrder === rejectingOrderId}
+                className="flex-1 bg-red-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {approvingOrder === rejectingOrderId ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Rejecting...
+                  </>
+                ) : (
+                  'Reject Order'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

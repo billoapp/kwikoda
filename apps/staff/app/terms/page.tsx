@@ -102,7 +102,7 @@ export default function TermsPage() {
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <p className="flex items-center gap-2 text-gray-700">
                 <Mail size={16} className="text-orange-500" />
-                <strong>Email:</strong> billo.mobile.app@gmail.com
+                <strong>Email:</strong> support@tabeza.co.ke
               </p>
               <p className="flex items-center gap-2 text-gray-700">
                 <Phone size={16} className="text-orange-500" />
