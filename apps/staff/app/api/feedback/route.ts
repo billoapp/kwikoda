@@ -261,16 +261,7 @@ export async function POST(request: NextRequest) {
       replyTo: email
     });
 
-    if (supportError) {
-      console.error('❌ Error sending feedback email:', supportError);
-      console.error('❌ Full error details:', JSON.stringify(supportError, null, 2));
-      return NextResponse.json(
-        { error: `Failed to send feedback: ${supportError.message || 'Unknown error'}` },
-        { status: 500 }
-      );
-    }
-
-    // Send confirmation email to sender (only if support email succeeded)
+    // Send confirmation email to sender (independent of support email)
     const { data: confirmationData, error: confirmationError } = await resend.emails.send({
       from: `Tabeza Support <${fromEmail}>`,
       to: [email],
@@ -278,15 +269,32 @@ export async function POST(request: NextRequest) {
       html: getConfirmationEmailHTML({ name, message })
     });
 
-    if (confirmationError) {
-      console.error('❌ Error sending confirmation email:', confirmationError);
-      // Don't fail whole request if confirmation fails, but log it
-      console.error('❌ Confirmation error details:', JSON.stringify(confirmationError, null, 2));
+    // Log results separately
+    if (supportError) {
+      console.error('❌ Error sending feedback email to support:', supportError);
+      console.error('❌ Support email error details:', JSON.stringify(supportError, null, 2));
+    } else {
+      console.log('✅ Support email sent successfully:', supportEmailData);
     }
 
-    console.log('✅ Feedback emails sent successfully:', { 
-      supportEmail: supportEmailData, 
-      confirmationEmail: confirmationData 
+    if (confirmationError) {
+      console.error('❌ Error sending confirmation email:', confirmationError);
+      console.error('❌ Confirmation error details:', JSON.stringify(confirmationError, null, 2));
+    } else {
+      console.log('✅ Confirmation email sent successfully:', confirmationData);
+    }
+
+    // Return success if at least one email was sent, or error if both failed
+    if (supportError && confirmationError) {
+      return NextResponse.json(
+        { error: 'Failed to send both support and confirmation emails' },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Feedback process completed:', { 
+      supportEmail: supportEmailData || 'failed',
+      confirmationEmail: confirmationData || 'failed'
     });
 
     // Return success
