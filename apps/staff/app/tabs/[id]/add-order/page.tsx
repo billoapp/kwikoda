@@ -84,48 +84,80 @@ export default function AddOrderPage() {
       }
     });
 
-    loadTabData();
-    loadProducts();
+    loadTabData().then(barId => {
+      if (barId) {
+        loadProducts(barId);
+      }
+    });
   }, [tabId]);
 
   const loadTabData = async () => {
     try {
+      // Get tab WITH bar_id
       const { data: tabData, error } = await supabase
         .from('tabs')
-        .select('*')
+        .select(`
+          *,
+          bar_id
+        `)
         .eq('id', tabId)
         .single();
 
       if (error) throw error;
       
+      console.log('✅ Tab loaded with bar_id:', tabData.bar_id);
       setTab(tabData);
+      
+      // Return bar_id for use in loadProducts
+      return tabData.bar_id;
+      
     } catch (error) {
       console.error('❌ Error loading tab:', error);
       alert('Failed to load tab. Redirecting...');
       router.push('/');
+      return null;
     }
   };
 
-  const loadProducts = async () => {
+  const loadProducts = async (barId: string) => {
     setLoading(true);
     try {
+      console.log('🔍 Loading products for bar_id:', barId);
+      
+      if (!barId) {
+        console.error('❌ No bar_id found!');
+        return;
+      }
+
       // 1. Load products already in bar inventory
       const { data: barProducts, error: barError } = await supabase
         .from('bar_products')
-        .select('id, bar_id, product_id, custom_product_id, name, category, description, image_url, sku, sale_price, active, created_at, updated_at')
-        .eq('bar_id', tabId)
+        .select(`
+          id,
+          sale_price,
+          active,
+          name,
+          category,
+          description,
+          image_url,
+          sku,
+          product_id,
+          custom_product_id,
+          bar_id
+        `)
+        .eq('bar_id', barId) // Use the ACTUAL bar_id
         .eq('active', true)
         .order('category, name');
 
-      if (barError) throw barError;
+      console.log('🔍 Raw bar_products query result:', { barProducts, barError });
 
-      console.log('🔍 Raw bar_products data:', barProducts);
+      if (barError) throw barError;
 
       // Transform bar products into UnifiedProduct format
       const barProductsUnified: UnifiedProduct[] = (barProducts || []).map(bp => {
-        const unified = {
+        return {
           id: bp.product_id || bp.custom_product_id || bp.id,
-          bar_product_id: bp.id, // This is the CRITICAL field!
+          bar_product_id: bp.id,
           name: bp.name,
           category: bp.category,
           price: bp.sale_price,
@@ -137,18 +169,9 @@ export default function AddOrderPage() {
           product_id: bp.product_id,
           custom_product_id: bp.custom_product_id
         };
-        
-        console.log('🔍 Transformed bar product:', {
-          bar_product_id: unified.bar_product_id,
-          name: unified.name,
-          price: unified.price,
-          is_custom: unified.is_custom
-        });
-        
-        return unified;
       });
 
-      console.log('🔍 Final bar products unified:', barProductsUnified);
+      console.log('🔍 Bar products unified:', barProductsUnified.length, 'items');
 
       // 2. Load global products NOT in bar inventory
       const { data: globalProducts, error: globalError } = await supabase
@@ -165,7 +188,7 @@ export default function AddOrderPage() {
           id: gp.id,
           name: gp.name,
           category: gp.category,
-          price: 0, // Not yet priced for this bar
+          price: 0,
           description: gp.description,
           image_url: gp.image_url,
           sku: gp.sku,
@@ -174,8 +197,12 @@ export default function AddOrderPage() {
           product_id: gp.id
         }));
 
+      console.log('🔍 Global products unified:', globalProductsUnified.length, 'items');
+
       // Combine products
-      setProducts([...barProductsUnified, ...globalProductsUnified]);
+      const allProducts = [...barProductsUnified, ...globalProductsUnified];
+      console.log('🔍 Total products:', allProducts.length);
+      setProducts(allProducts);
 
     } catch (error) {
       console.error('❌ Error loading products:', error);
@@ -231,19 +258,28 @@ export default function AddOrderPage() {
   const addProductToBar = async (product: UnifiedProduct) => {
     console.log('🔍 Starting addProductToBar for:', product.name, 'Source:', product.source);
     
+    // Get bar_id from tab
+    if (!tab || !tab.bar_id) {
+      console.error('❌ No bar_id found in tab data:', tab);
+      alert('Cannot add product - bar information missing. Please refresh and try again.');
+      return;
+    }
+
+    const barId = tab.bar_id;
+    
     const price = prompt(`Set price for ${product.name}:`, '300');
     if (!price || parseFloat(price) <= 0) {
       console.log('❌ Invalid price or cancelled');
       return;
     }
 
-    console.log('✅ Price entered:', price);
+    console.log('✅ Price entered:', price, 'For bar_id:', barId);
 
     try {
       if (product.source === 'global-catalog') {
         // Add global product to bar_products
         console.log('🔍 Adding global product to bar:', {
-          bar_id: tabId,
+          bar_id: barId, // Use bar_id, not tabId!
           product_id: product.id,
           sale_price: parseFloat(price),
           name: product.name,
@@ -251,7 +287,7 @@ export default function AddOrderPage() {
         });
 
         const insertData = {
-          bar_id: tabId,
+          bar_id: barId, // 🔥 CRITICAL FIX: Use bar_id
           product_id: product.id,
           sale_price: parseFloat(price),
           name: product.name,
@@ -311,9 +347,8 @@ export default function AddOrderPage() {
         throw new Error(`Cannot add product with source: ${product.source}`);
       }
 
-      // Refresh products
-      console.log('🔍 Refreshing products...');
-      await loadProducts();
+      // Refresh products with correct bar_id
+      await loadProducts(barId);
       alert(`✅ ${product.name} added to menu at ${formatCurrency(parseFloat(price))}!`);
 
     } catch (error) {
@@ -326,16 +361,25 @@ export default function AddOrderPage() {
   const createCustomProduct = async () => {
     if (!customData.name || !customData.category) return;
 
+    // Get bar_id from tab
+    if (!tab || !tab.bar_id) {
+      console.error('❌ No bar_id found in tab data:', tab);
+      alert('Cannot create product - bar information missing. Please refresh and try again.');
+      return;
+    }
+
+    const barId = tab.bar_id;
+
     try {
       // 1. Get price first (for bar_products)
       const price = prompt(`Set price for ${customData.name}:`, '500');
       if (!price || parseFloat(price) <= 0) return;
 
-      console.log('🔍 Creating custom product:', customData.name, 'Price:', price);
+      console.log('🔍 Creating custom product:', customData.name, 'Price:', price, 'For bar_id:', barId);
 
       // 2. Create in custom_products table WITHOUT price (like products table)
       const customInsertData = {
-        bar_id: tabId,
+        bar_id: barId, // 🔥 Use bar_id
         name: customData.name,
         category: customData.category,
         description: customData.description,
@@ -358,13 +402,13 @@ export default function AddOrderPage() {
         throw customError;
       }
 
-      console.log('✅ Custom product created (no price):', newCustomProduct);
+      console.log('✅ Custom product created:', newCustomProduct);
 
-      // 3. Create in bar_products WITH price (single source of truth)
+      // 3. Create in bar_products WITH price
       const barInsertData = {
-        bar_id: tabId,
+        bar_id: barId, // 🔥 Use bar_id
         custom_product_id: newCustomProduct.id,
-        sale_price: parseFloat(price),  // ✅ Price ONLY here
+        sale_price: parseFloat(price),
         name: customData.name,
         category: customData.category,
         description: customData.description,
@@ -387,12 +431,12 @@ export default function AddOrderPage() {
         throw barError;
       }
 
-      console.log('✅ Custom product added to bar_products with price:', barProductData);
+      console.log('✅ Custom product added to bar_products:', barProductData);
 
-      // 4. Close modal and refresh
+      // 4. Close modal and refresh with correct bar_id
       setShowCustomModal(false);
       setCustomData({ name: '', category: '', description: '' });
-      await loadProducts();
+      await loadProducts(barId);
       
       alert(`✅ ${customData.name} created and added to menu!`);
 
@@ -598,18 +642,31 @@ export default function AddOrderPage() {
         {/* Debug Panel - Remove in production */}
         <div className="bg-yellow-100 border border-yellow-300 p-4 m-4 rounded-lg">
           <h3 className="font-bold text-yellow-800 mb-2">Debug Panel</h3>
-          <button
-            onClick={testDirectInsert}
-            className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mr-2"
-          >
-            Test Direct Insert
-          </button>
-          <button
-            onClick={() => console.log('Current tabId:', tabId)}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Log Tab ID
-          </button>
+          <p>Tab ID: {tabId}</p>
+          <p>Bar ID: {tab?.bar_id || 'Not loaded'}</p>
+          <p>Tab Number: {tab?.tab_number || 'Not loaded'}</p>
+          <p>Loaded Products: {products.length}</p>
+          
+          <div className="mt-2 space-x-2">
+            <button
+              onClick={() => console.log('Tab data:', tab)}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Log Tab Data
+            </button>
+            <button
+              onClick={() => console.log('Products:', products)}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            >
+              Log Products
+            </button>
+            <button
+              onClick={() => tab?.bar_id && loadProducts(tab.bar_id)}
+              className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
+            >
+              Reload Products
+            </button>
+          </div>
         </div>
 
         {/* Header */}
