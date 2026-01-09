@@ -160,6 +160,7 @@ export default function AddOrderPage() {
     try {
       if (product.source === 'global-catalog') {
         // Add global product to bar_products
+        console.log('🔍 Adding global product to bar:', product.name);
         const { error } = await supabase
           .from('bar_products')
           .insert({
@@ -174,7 +175,35 @@ export default function AddOrderPage() {
             active: true
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error adding global product:', error);
+          throw error;
+        }
+        
+        console.log('✅ Global product added successfully');
+        
+      } else if (product.source === 'bar-inventory') {
+        // Update existing bar product price
+        console.log('🔍 Updating existing bar product price:', product.name);
+        const { error } = await supabase
+          .from('bar_products')
+          .update({ 
+            sale_price: parseFloat(price),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', product.bar_product_id);
+
+        if (error) {
+          console.error('❌ Error updating bar product:', error);
+          throw error;
+        }
+        
+        console.log('✅ Bar product price updated successfully');
+        
+      } else {
+        // Handle unexpected product sources
+        console.error('❌ Unexpected product source:', product.source);
+        throw new Error(`Cannot add product with source: ${product.source}`);
       }
 
       // Refresh products
@@ -182,8 +211,8 @@ export default function AddOrderPage() {
       alert(`✅ ${product.name} added to menu at ${formatCurrency(parseFloat(price))}!`);
 
     } catch (error) {
-      console.error('❌ Error adding to bar:', error);
-      alert('Failed to add to menu. Please try again.');
+      console.error('❌ Error in addProductToBar:', error);
+      alert(`Failed to add ${product.name} to menu. Please try again.`);
     }
   };
 
@@ -191,7 +220,11 @@ export default function AddOrderPage() {
     if (!customData.name || !customData.category) return;
 
     try {
-      // 1. Create in custom_products table
+      // 1. Get price first (for bar_products)
+      const price = prompt(`Set price for ${customData.name}:`, '500');
+      if (!price || parseFloat(price) <= 0) return;
+
+      // 2. Create in custom_products table WITHOUT price (like products table)
       const { data: newCustomProduct, error: customError } = await supabase
         .from('custom_products')
         .insert({
@@ -201,22 +234,25 @@ export default function AddOrderPage() {
           description: customData.description,
           sku: generateSKU(),
           active: true
+          // ❌ NO price field here - price only in bar_products
         })
         .select()
         .single();
 
-      if (customError) throw customError;
+      if (customError) {
+        console.error('❌ Error creating custom product:', customError);
+        throw customError;
+      }
 
-      // 2. Immediately create in bar_products with price
-      const price = prompt(`Set price for ${customData.name}:`, '500');
-      if (!price || parseFloat(price) <= 0) return;
+      console.log('✅ Custom product created (no price):', newCustomProduct);
 
+      // 3. Create in bar_products WITH price (single source of truth)
       const { error: barError } = await supabase
         .from('bar_products')
         .insert({
           bar_id: tabId,
           custom_product_id: newCustomProduct.id,
-          sale_price: parseFloat(price),
+          sale_price: parseFloat(price),  // ✅ Price ONLY here
           name: customData.name,
           category: customData.category,
           description: customData.description,
@@ -224,9 +260,14 @@ export default function AddOrderPage() {
           active: true
         });
 
-      if (barError) throw barError;
+      if (barError) {
+        console.error('❌ Error adding to bar_products:', barError);
+        throw barError;
+      }
 
-      // 3. Close modal and refresh
+      console.log('✅ Custom product added to bar_products with price');
+
+      // 4. Close modal and refresh
       setShowCustomModal(false);
       setCustomData({ name: '', category: '', description: '' });
       await loadProducts();
