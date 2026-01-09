@@ -110,6 +110,7 @@ export default function AddOrderPage() {
 
     console.log('🔍 Searching global products for:', query);
     console.log('🔍 Query length:', query.length);
+    console.log('🔍 Current user:', await supabase.auth.getUser());
 
     try {
       const { data, error } = await supabase
@@ -121,9 +122,13 @@ export default function AddOrderPage() {
 
       console.log('🔍 Global products query result:', { data, error });
       console.log('🔍 Data length:', data?.length || 0);
+      console.log('🔍 Full error details:', error);
 
       if (error) {
         console.error('❌ Error searching global products:', error);
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error details:', error.details);
         return;
       }
 
