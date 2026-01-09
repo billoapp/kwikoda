@@ -11,10 +11,11 @@ export type {
   ValidationResult 
 } from './generator';
 
-// Re-export legacy-compat functions
+// Legacy compatibility exports (must come before new functions to override)
 export {
   getAllOpenTabs,
   hasOpenTabAtBar,
+  validateDeviceForNewTab,
   clearDeviceId,
   storeActiveTab,
   getActiveTab,
@@ -39,7 +40,8 @@ export async function getBarDeviceKey(barId: string): Promise<string> {
   return `${device.id}_${barId}`;
 }
 
-export async function validateDeviceForNewTab(
+// New validation function (different name to avoid conflict)
+export async function validateDeviceForBar(
   barId: string
 ): Promise<{ valid: boolean; reason?: string; warnings?: string[]; existingTab?: any }> {
   const { DeviceIdentity } = await import('./generator');
