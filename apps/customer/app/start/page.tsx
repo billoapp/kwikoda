@@ -137,7 +137,9 @@ function ConsentContent() {
     try {
       setValidating(true);
       console.log('🔒 Validating device for bar:', barId);
-      console.log('🆔 Device ID:', getDeviceId());
+      
+      const deviceId = await getDeviceId();
+      console.log('🆔 Device ID:', deviceId);
       
       const validation = await validateDeviceForNewTab(barId, supabase as any);
       
@@ -215,13 +217,13 @@ function ConsentContent() {
 
     try {
       console.log('🚀 Starting tab creation process');
-      console.log('🆔 Device ID:', getDeviceId());
+      
+      const deviceId = await getDeviceId();
+      const barDeviceKey = await getBarDeviceKey(barId);
+      
+      console.log('🆔 Device ID:', deviceId);
       console.log('🏪 Bar ID:', barId);
       console.log('👤 Nickname:', nickname || '(none)');
-      
-      const deviceId = getDeviceId();
-      const barDeviceKey = getBarDeviceKey(barId);
-      
       console.log('🔑 Bar Device Key:', barDeviceKey);
       
       // Re-validate device before creating tab (double-check)
