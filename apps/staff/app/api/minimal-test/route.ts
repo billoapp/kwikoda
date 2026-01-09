@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Test with hardcoded values to isolate the issue
     const { data, error } = await resend.emails.send({
       from: `Tabeza Support <${fromEmail}>`,
-      to: [email || 'billo.mobile.app@gmail.com'],
+      to: [email || 'support@tabeza.co.ke'],
       subject: 'Minimal Test',
       html: '<p>This is a minimal test</p>'
     });

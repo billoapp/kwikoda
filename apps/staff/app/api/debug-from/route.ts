@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     console.log('📧 Test 1: Using env var fromEmail');
     const result1 = await resend.emails.send({
       from: `Tabeza Support <${fromEmail}>`,
-      to: [testEmail || 'billo.mobile.app@gmail.com'],
+      to: [testEmail || 'support@tabeza.co.ke'],
       subject: 'Test 1 - Env Var',
       html: '<p>Test 1: Using environment variable</p>'
     });
