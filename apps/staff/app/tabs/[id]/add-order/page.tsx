@@ -197,28 +197,29 @@ export default function AddOrderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-32">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 sticky top-0 z-20">
-        <button 
-          onClick={() => router.push(`/tabs/${tabId}`)}
-          className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
-        >
-          <ArrowRight size={24} className="transform rotate-180" />
-        </button>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Add Order</h1>
-            <p className="text-orange-100">Tab #{tab.tab_number}</p>
-            <p className="text-xs text-orange-200 mt-1">🔔 Customer will approve this order</p>
-          </div>
-          {cartCount > 0 && (
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-3 py-2">
-              <p className="text-sm text-orange-100">Cart</p>
-              <p className="font-bold">{cartCount} items</p>
+    <div className="min-h-screen bg-gray-50 flex justify-center">
+      <div className="w-full lg:max-w-[80%] max-w-full">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 sticky top-0 z-20">
+          <button 
+            onClick={() => router.push(`/tabs/${tabId}`)}
+            className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
+          >
+            <ArrowRight size={24} className="transform rotate-180" />
+          </button>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold mb-1">Add Order</h1>
+              <p className="text-orange-100">Tab #{tab.tab_number}</p>
+              <p className="text-xs text-orange-200 mt-1">🔔 Customer will approve this order</p>
             </div>
-          )}
+            {cartCount > 0 && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-3 py-2">
+                <p className="text-sm text-orange-100">Cart</p>
+                <p className="font-bold">{cartCount} items</p>
+              </div>
+            )}
         </div>
       </div>
 

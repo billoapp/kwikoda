@@ -322,257 +322,166 @@ export default function QuickOrderPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-10">
-        <div className="flex items-center gap-3 mb-2">
-          <button
-            onClick={() => router.push(`/tabs/${tabId}`)}
-            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-lg font-bold">Add Items to Cart</h1>
-            <p className="text-sm text-orange-100">{tab?.bar?.name}</p>
-          </div>
-        </div>
-        <div className="bg-white bg-opacity-20 rounded-lg p-3">
-          <p className="text-sm text-white">
-            🛒 Items added here will appear in the cart on the main tab page
-          </p>
-        </div>
-      </div>
-
-      <div className="p-4 max-w-2xl mx-auto">
-        {/* Quick Entry Form */}
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <Plus size={16} />
-              Add Item
-            </h2>
-            {/* DISABLED: Browse Catalog toggle button
+    <div className="min-h-screen bg-gray-50 flex justify-center">
+      <div className="w-full lg:max-w-[80%] max-w-full">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-10">
+          <div className="flex items-center gap-3 mb-2">
             <button
-              onClick={() => setShowCatalog(!showCatalog)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                showCatalog 
-                  ? 'bg-purple-500 text-white' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              onClick={() => router.push(`/tabs/${tabId}`)}
+              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
             >
-              {showCatalog ? 'Custom' : 'Browse Catalog'}
+              <ArrowLeft size={20} />
             </button>
-            */}
+            <div>
+              <h1 className="text-lg font-bold">Add Items to Cart</h1>
+              <p className="text-sm text-orange-100">{tab?.bar?.name}</p>
+            </div>
+          </div>
+          <div className="bg-white bg-opacity-20 rounded-lg p-3">
+            <p className="text-sm text-white">
+              🛒 Items added here will appear in the cart on the main tab page
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 max-w-2xl mx-auto">
+          {/* Quick Entry Form */}
+          <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Plus size={16} />
+                Add Item
+              </h2>
+              {/* DISABLED: Browse Catalog toggle button
+              <button
+                onClick={() => setShowCatalog(!showCatalog)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap ${
+                  showCatalog 
+                    ? 'bg-purple-500 text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {showCatalog ? 'Custom' : 'Browse Catalog'}
+              </button>
+              */}
+            </div>
+
+            {!showCatalog ? (
+              <div className="space-y-3">
+                <div className="relative">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Product Name *
+                  </label>
+                  <input
+                    id="productName"
+                    type="text"
+                    value={currentName}
+                    onChange={handleNameChange}
+                    onKeyPress={(e) => handleKeyPress(e, 'name')}
+                    onFocus={() => setShowRecent(true)}
+                    onBlur={() => setShowRecent(false)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                    placeholder="e.g., Tusker, Nyama Choma"
+                    autoComplete="off"
+                  />
+                  
+                  {/* Recent Products Dropdown */}
+                  {showRecent && recentProducts.length > 0 && (
+                    <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                        <History size={14} className="text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-600">Recent Items</span>
+                      </div>
+                      {recentProducts.map((product, index) => (
+                        <button
+                          key={index}
+                          onClick={() => useRecentProduct(product)}
+                          className="w-full px-3 py-2 text-left hover:bg-orange-50 flex items-center justify-between"
+                        >
+                          <span className="text-sm text-gray-800">{product.name}</span>
+                          <span className="text-xs text-gray-500">{tempFormatCurrency(product.price)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* JSON Product Suggestions Dropdown */}
+                  {showSuggestions && productSuggestions.length > 0 && (
+                    <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                        <Search size={14} className="text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-600">Product Suggestions</span>
+                      </div>
+                      {productSuggestions.map((product, index) => (
+                        <button
+                          key={index}
+                          onClick={() => selectProduct(product.name)}
+                          className="w-full px-3 py-2 text-left hover:bg-orange-50"
+                        >
+                          <span className="text-sm text-gray-800">{product.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Price (KSh) *
+                    </label>
+                    <input
+                      id="productPrice"
+                      type="number"
+                      value={currentPrice}
+                      onChange={(e) => setCurrentPrice(e.target.value)}
+                      onKeyPress={(e) => handleKeyPress(e, 'price')}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Quantity
+                    </label>
+                    <input
+                      id="productQuantity"
+                      type="number"
+                      value={currentQuantity}
+                      onChange={(e) => setCurrentQuantity(e.target.value)}
+                      onKeyPress={(e) => handleKeyPress(e, 'quantity')}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                      placeholder="1"
+                      min="1"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={addItem}
+                  className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  Add to Cart
+                </button>
+              </div>
+            ) : null}
           </div>
 
-          {!showCatalog ? (
-            <div className="space-y-3">
-              <div className="relative">
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Product Name *
-                </label>
-                <input
-                  id="productName"
-                  type="text"
-                  value={currentName}
-                  onChange={handleNameChange}
-                  onKeyPress={(e) => handleKeyPress(e, 'name')}
-                  onFocus={() => setShowRecent(true)}
-                  onBlur={() => setShowRecent(false)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                  placeholder="e.g., Tusker, Nyama Choma"
-                  autoComplete="off"
-                />
-                
-                {/* Recent Products Dropdown */}
-                {showRecent && recentProducts.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
-                      <History size={14} className="text-gray-500" />
-                      <span className="text-xs font-semibold text-gray-600">Recent Items</span>
-                    </div>
-                    {recentProducts.map((product, index) => (
-                      <button
-                        key={index}
-                        onClick={() => useRecentProduct(product)}
-                        className="w-full px-3 py-2 text-left hover:bg-orange-50 flex items-center justify-between"
-                      >
-                        <span className="text-sm text-gray-800">{product.name}</span>
-                        <span className="text-xs text-gray-500">{tempFormatCurrency(product.price)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                
-                {/* JSON Product Suggestions Dropdown */}
-                {showSuggestions && productSuggestions.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
-                      <Search size={14} className="text-gray-500" />
-                      <span className="text-xs font-semibold text-gray-600">Product Suggestions</span>
-                    </div>
-                    {productSuggestions.map((product, index) => (
-                      <button
-                        key={index}
-                        onClick={() => selectProduct(product.name)}
-                        className="w-full px-3 py-2 text-left hover:bg-orange-50"
-                      >
-                        <span className="text-sm text-gray-800">{product.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Price (KSh) *
-                  </label>
-                  <input
-                    id="productPrice"
-                    type="number"
-                    value={currentPrice}
-                    onChange={(e) => setCurrentPrice(e.target.value)}
-                    onKeyPress={(e) => handleKeyPress(e, 'price')}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                    placeholder="0"
-                    min="0"
-                    step="1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Quantity
-                  </label>
-                  <input
-                    id="productQuantity"
-                    type="number"
-                    value={currentQuantity}
-                    onChange={(e) => setCurrentQuantity(e.target.value)}
-                    onKeyPress={(e) => handleKeyPress(e, 'quantity')}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                    placeholder="1"
-                    min="1"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={addItem}
-                className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
-              >
-                <Check size={18} />
-                Add to Cart
-              </button>
-            </div>
-          ) : (
-            // DISABLED: Catalog browsing interface
-            /*
-            <div className="space-y-3">
-              <div className="relative mb-3">
-                <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search catalog..."
-                  className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none"
-                />
-              </div>
-              
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                <button
-                  onClick={() => setSelectedCategory('all')}
-                  className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-                    selectedCategory === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  All
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.name}
-                    onClick={() => setSelectedCategory(cat.name)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-                      selectedCategory === cat.name ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-
-              <div className="max-h-60 overflow-y-auto space-y-2">
-                {filteredProducts.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400">
-                    <Search size={32} className="mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No products found</p>
-                  </div>
-                ) : (
-                  filteredProducts.map((product) => {
-                    const displayImage = getDisplayImage(product);
-                    return (
-                      <div
-                        key={product.id}
-                        onClick={() => addCatalogItem(product)}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-purple-50 cursor-pointer transition-colors"
-                      >
-                        {displayImage ? (
-                          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                            <img
-                              src={displayImage}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex-shrink-0 flex items-center justify-center">
-                            <span className="text-2xl">🍺</span>
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-800 text-sm">{product.name}</p>
-                          <p className="text-xs text-gray-500">{product.category}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-purple-600 font-medium">Click to add</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-            */
-           null
-          )}
-        </div>
-
-        {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
-            <Plus size={16} />
-            How to use:
-          </h3>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Add items using the form above</li>
-            <li>• Items will be added to your cart automatically</li>
-            <li>• Return to the tab page to review and submit your order</li>
-          </ul>
-        </div>
-
-        {/* Return to Tab Button */}
-        <div className="mt-6">
-          <button
-            onClick={() => router.push(`/tabs/${tabId}`)}
-            className="w-full bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 flex items-center justify-center gap-2"
-          >
-            <ArrowLeft size={18} />
-            Return to Tab
-          </button>
+          {/* Return to Tab Button */}
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => router.push(`/tabs/${tabId}`)}
+              className="w-full bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft size={18} />
+              Return to Tab
+            </button>
+          </div>
         </div>
       </div>
     </div>
