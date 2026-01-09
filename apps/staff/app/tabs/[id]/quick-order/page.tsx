@@ -383,7 +383,7 @@ export default function QuickOrderPage() {
                     onBlur={() => setShowRecent(false)}
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                     placeholder="e.g., Tusker, Nyama Choma"
-                    autoComplete="off"
+                    autoComplete="on"
                   />
                   
                   {/* Recent Products Dropdown */}

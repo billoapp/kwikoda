@@ -178,6 +178,15 @@ export default function MenuManagementPage() {
     transitionSpeed: 3000,
   });
 
+  // Pro feature modal state
+  const [showProModal, setShowProModal] = useState(false);
+  const [proFeature, setProFeature] = useState('');
+
+  const handleProFeature = (feature: string) => {
+    setProFeature(feature);
+    setShowProModal(true);
+  };
+
   // Helper function to get display image with category fallback - DISABLED
   /*
   const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
@@ -1104,18 +1113,34 @@ export default function MenuManagementPage() {
           <p className="text-orange-100 text-sm">Manage your menu here</p>
         </div>
         <div className="p-4 space-y-6">
-          {/* Notice about interactive menu being disabled */}
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Settings size={20} className="text-blue-600" />
+          {/* Interactive Menu Section */}
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Settings size={20} className="text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Interactive Menu</h3>
+                  <p className="text-sm text-gray-500">Full digital ordering experience</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-blue-800 text-lg mb-1">Interactive Menu</h3>
-                <p className="text-blue-700">
-                  Coming soon.
-                </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                  Pro
+                </span>
+                <button
+                  onClick={() => handleProFeature('Interactive Menu')}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                >
+                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
+                </button>
               </div>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-700">
+                🚀 Enable interactive menu for digital ordering with real-time updates
+              </p>
             </div>
           </div>
 
@@ -1629,7 +1654,12 @@ export default function MenuManagementPage() {
                           }`}
                         >
                           <div className="mx-auto mb-1">🎞️</div>
-                          Slideshow (5 max)
+                          <div className="flex items-center justify-center gap-1">
+                            <span>Slideshow (5 max)</span>
+                            <span className="text-xs bg-orange-100 text-orange-700 px-1 py-0.5 rounded-full font-medium">
+                              Pro
+                            </span>
+                          </div>
                         </button>
                       </div>
                     </div>
@@ -1655,9 +1685,17 @@ export default function MenuManagementPage() {
                     {/* Slideshow Upload */}
                     {uploadMode === 'slideshow' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Select up to 5 images for slideshow
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Select up to 5 images for slideshow
+                          </label>
+                          <button
+                            onClick={() => handleProFeature('Slideshow Images')}
+                            className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium hover:bg-orange-200 transition-colors"
+                          >
+                            Learn more about Pro
+                          </button>
+                        </div>
                         <input
                           type="file"
                           accept="image/jpeg,image/jpg,image/png,image/webp"
@@ -1758,161 +1796,75 @@ export default function MenuManagementPage() {
             )}
           </div>
 
-          {/* DISABLED: Add Custom Item 
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-800">Create Custom Product</h2>
-              <button
-                onClick={() => setShowAddCustom(!showAddCustom)}
-                className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 flex items-center gap-2"
-              >
-                {showAddCustom ? <X size={16} /> : <Plus size={16} />}
-                {showAddCustom ? 'Cancel' : 'Add Custom'}
-              </button>
-            </div>
-            {showAddCustom && (
-              <div className="bg-white rounded-xl p-4 shadow-sm">
-                <h3 className="font-semibold mb-3">Create New Custom Product</h3>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={newCustomItem.name}
-                    onChange={(e) => setNewCustomItem({ ...newCustomItem, name: e.target.value })}
-                    placeholder="Product name *"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                  />
-                  <select
-                    value={newCustomItem.category}
-                    onChange={(e) => setNewCustomItem({ ...newCustomItem, category: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="">Select category *</option>
-                    {categories.map((cat) => (
-                      <option key={cat.name} value={cat.name}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={newCustomItem.description}
-                    onChange={(e) => setNewCustomItem({ ...newCustomItem, description: e.target.value })}
-                    placeholder="Description (optional)"
-                    rows={2}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                  />
-                  
-                  {/* Image upload section for new custom product 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Product Image
-                      <span className="text-gray-400 ml-1">(optional)</span>
-                    </label>
-                    
-                    {newCustomItem.image_url ? (
-                      <div className="space-y-3">
-                        <div className="relative w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden">
-                          <img
-                            src={newCustomItem.image_url}
-                            alt="Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCurrentImageField('new');
-                              setShowCropper(true);
-                            }}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
-                          >
-                            Change Image
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewCustomItem({ ...newCustomItem, image_url: '' })}
-                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCurrentImageField('new');
-                          setShowCropper(true);
-                        }}
-                        className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 text-center transition-colors"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center">
-                            <Upload size={24} className="text-orange-500" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-700">Upload Product Image</p>
-                            <p className="text-sm text-gray-500 mt-1">
-                              Click to crop image to 4:5 ratio
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">Pan & zoom controls available</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
+          {/* Pro Feature Modal */}
+          {showProModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xl font-bold">✨</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
+                      <p className="text-sm text-gray-500">Unlock premium features</p>
+                    </div>
                   </div>
-
-                  {/* Legacy URL input (as fallback) 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Or paste image URL
-                      <span className="text-gray-400 ml-1">(alternative)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newCustomItem.image_url}
-                      onChange={(e) => {
-                        const convertedUrl = convertGoogleDriveLink(e.target.value);
-                        setNewCustomItem({ ...newCustomItem, image_url: convertedUrl });
-                      }}
-                      onBlur={(e) => {
-                        const convertedUrl = convertGoogleDriveLink(e.target.value);
-                        if (convertedUrl !== e.target.value) {
-                          setNewCustomItem({ ...newCustomItem, image_url: convertedUrl });
-                        }
-                      }}
-                      placeholder="Paste image URL here (ImgBB, Google Drive, etc.)"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-800">
-                      💡 This will create an unpublished product. Add a price to publish it to your menu.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleCreateCustomProduct}
-                    className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600"
-                  >
-                    Create Product
+                  <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                    <X size={20} />
                   </button>
                 </div>
+
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+                  <p className="text-sm text-gray-700 mb-3">
+                    <strong>{proFeature}</strong> is a Pro feature that helps you:
+                  </p>
+                  <ul className="text-sm text-gray-600 space-y-2 ml-4">
+                    {proFeature === 'Interactive Menu' ? (
+                      <>
+                        <li>• Full digital ordering experience</li>
+                        <li>• Real-time menu updates</li>
+                        <li>• Customer order tracking</li>
+                      </>
+                    ) : proFeature === 'Slideshow Images' ? (
+                      <>
+                        <li>• Multiple menu images display</li>
+                        <li>• Automatic slideshow transitions</li>
+                        <li>• Enhanced visual presentation</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>• Advanced menu features</li>
+                        <li>• Enhanced customer experience</li>
+                        <li>• Professional tools</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => setShowProModal(false)}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
+                  >
+                    Coming Soon
+                  </button>
+                  <button 
+                    onClick={() => setShowProModal(false)}
+                    className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-500 text-center mt-4">
+                  Join the waitlist • Be notified when Pro launches
+                </p>
               </div>
-            )}
-          </div>
-          */}
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Image Cropper Modal - DISABLED 
-      <InteractiveImageCropper
-        isOpen={showCropper}
-        onClose={() => setShowCropper(false)}
-        onImageReady={handleImageCropped}
-        aspectRatio={4/5}
-      />
-      */}
     </div>
   );
 }
