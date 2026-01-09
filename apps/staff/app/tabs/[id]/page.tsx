@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send } from 'lucide-react';
+import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
@@ -27,6 +27,85 @@ interface CartItem {
   product_id?: string;
 }
 
+// Confirmation Modal Component
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  type?: 'warning' | 'danger' | 'info';
+  isLoading?: boolean;
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  type = 'warning',
+  isLoading = false
+}) => {
+  if (!isOpen) return null;
+
+  const typeStyles = {
+    warning: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    danger: 'bg-red-100 text-red-800 border-red-200',
+    info: 'bg-blue-100 text-blue-800 border-blue-200'
+  };
+
+  const buttonStyles = {
+    warning: 'bg-yellow-500 hover:bg-yellow-600',
+    danger: 'bg-red-500 hover:bg-red-600',
+    info: 'bg-blue-500 hover:bg-blue-600'
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+        <div className="flex items-start gap-4 mb-4">
+          <div className={`p-3 rounded-full ${typeStyles[type]}`}>
+            <AlertTriangle size={24} />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">{title}</h2>
+            <p className="text-gray-600">{message}</p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 disabled:opacity-50"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isLoading}
+            className={`flex-1 py-3 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed ${buttonStyles[type]}`}
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw size={16} className="animate-spin" />
+                Processing...
+              </span>
+            ) : (
+              confirmText
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function TabDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -48,6 +127,11 @@ export default function TabDetailPage() {
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [submittingOrder, setSubmittingOrder] = useState(false);
+
+  // Close tab confirmation state
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closingTab, setClosingTab] = useState(false);
+  const [closeTabReason, setCloseTabReason] = useState<'close' | 'overdue'>('close');
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -446,70 +530,20 @@ export default function TabDetailPage() {
     }
   };
 
-  const handleCloseTab = async () => {
-    const balance = getTabBalance();
-    
-    if (balance > 0) {
-      const confirm = window.confirm(`Tab has ${tempFormatCurrency(balance)} outstanding balance. Push to overdue (bad debt)?`);
-      if (!confirm) return;
-      
-      try {
-        const { error } = await supabase
-          .from('tabs')
-          .update({ 
-            status: 'overdue',
-            moved_to_overdue_at: new Date().toISOString(),
-            overdue_reason: 'Unpaid balance pushed to bad debt'
-          })
-          .eq('id', tabId);
+  // Check for pending orders awaiting customer approval
+  const hasPendingStaffOrders = () => {
+    if (!tab?.orders) return false;
+    return tab.orders.some((order: any) => 
+      order.status === 'pending' && order.initiated_by === 'staff'
+    );
+  };
 
-        if (error) throw error;
-
-        showToast({
-          type: 'success',
-          title: 'Tab Pushed to Overdue',
-          message: 'Successfully moved to bad debt'
-        });
-        router.push('/');
-        
-      } catch (error) {
-        console.error('Error pushing to overdue:', error);
-        showToast({
-          type: 'error',
-          title: 'Failed to Push to Overdue',
-          message: 'Please try again'
-        });
-      }
-      return;
-    }
-    
-    try {
-      const { error } = await supabase
-        .from('tabs')
-        .update({ 
-          status: 'closed', 
-          closed_at: new Date().toISOString(),
-          closed_by: 'staff'
-        })
-        .eq('id', tabId);
-
-      if (error) throw error;
-
-      showToast({
-        type: 'success',
-        title: 'Tab Closed',
-        message: 'Successfully closed tab'
-      });
-      router.push('/');
-      
-    } catch (error) {
-      console.error('Error closing tab:', error);
-      showToast({
-        type: 'error',
-        title: 'Failed to Close Tab',
-        message: 'Please try again'
-      });
-    }
+  // Check for pending customer orders not yet served
+  const hasPendingCustomerOrders = () => {
+    if (!tab?.orders) return false;
+    return tab.orders.some((order: any) => 
+      order.status === 'pending' && order.initiated_by === 'customer'
+    );
   };
 
   const getTabBalance = () => {
@@ -519,6 +553,111 @@ export default function TabDetailPage() {
     const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
       .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
     return ordersTotal - paymentsTotal;
+  };
+
+  const initiateCloseTab = () => {
+    const balance = getTabBalance();
+    
+    // Check for pending orders
+    if (hasPendingStaffOrders()) {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Close Tab',
+        message: 'There are orders pending customer approval'
+      });
+      return;
+    }
+
+    if (hasPendingCustomerOrders()) {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Close Tab',
+        message: 'There are unserved customer orders'
+      });
+      return;
+    }
+
+    // Determine closure type
+    if (balance > 0) {
+      setCloseTabReason('overdue');
+      setShowCloseConfirm(true);
+    } else {
+      setCloseTabReason('close');
+      setShowCloseConfirm(true);
+    }
+  };
+
+  const executeCloseTab = async () => {
+    const balance = getTabBalance();
+    
+    // Double-check pending orders before proceeding
+    if (hasPendingStaffOrders() || hasPendingCustomerOrders()) {
+      showToast({
+        type: 'error',
+        title: 'Cannot Close Tab',
+        message: 'Pending orders detected. Please resolve them first.'
+      });
+      setClosingTab(false);
+      setShowCloseConfirm(false);
+      return;
+    }
+
+    setClosingTab(true);
+
+    try {
+      if (balance > 0) {
+        // Push to overdue
+        const { error } = await supabase
+          .from('tabs')
+          .update({ 
+            status: 'overdue',
+            moved_to_overdue_at: new Date().toISOString(),
+            overdue_reason: 'Unpaid balance pushed to bad debt',
+            closed_by: 'staff'
+          })
+          .eq('id', tabId);
+
+        if (error) throw error;
+
+        showToast({
+          type: 'success',
+          title: 'Tab Pushed to Overdue',
+          message: `Successfully moved to bad debt with ${tempFormatCurrency(balance)} balance`
+        });
+        
+      } else {
+        // Close normally
+        const { error } = await supabase
+          .from('tabs')
+          .update({ 
+            status: 'closed', 
+            closed_at: new Date().toISOString(),
+            closed_by: 'staff'
+          })
+          .eq('id', tabId);
+
+        if (error) throw error;
+
+        showToast({
+          type: 'success',
+          title: 'Tab Closed',
+          message: 'Successfully closed tab'
+        });
+      }
+      
+      router.push('/');
+      
+    } catch (error) {
+      console.error('Error closing tab:', error);
+      showToast({
+        type: 'error',
+        title: 'Failed to Close Tab',
+        message: 'Please try again'
+      });
+    } finally {
+      setClosingTab(false);
+      setShowCloseConfirm(false);
+    }
   };
 
   const loadTelegramMessages = async () => {
@@ -778,6 +917,15 @@ export default function TabDetailPage() {
   const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
     .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
 
+  // Calculate pending amounts
+  const pendingStaffOrdersTotal = tab.orders
+    ?.filter((order: any) => order.status === 'pending' && order.initiated_by === 'staff')
+    .reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0;
+
+  const pendingCustomerOrdersTotal = tab.orders
+    ?.filter((order: any) => order.status === 'pending' && order.initiated_by === 'customer')
+    .reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0;
+
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center">
       <div className="w-full lg:max-w-[70%] max-w-full">
@@ -818,6 +966,25 @@ export default function TabDetailPage() {
               <span className="text-orange-100">Total Orders</span>
               <span className="font-semibold">{tempFormatCurrency(ordersTotal)}</span>
             </div>
+            
+            {/* Show pending orders warnings */}
+            {(pendingStaffOrdersTotal > 0 || pendingCustomerOrdersTotal > 0) && (
+              <>
+                {pendingStaffOrdersTotal > 0 && (
+                  <div className="flex items-center justify-between mb-1 text-sm">
+                    <span className="text-orange-100">Pending Customer Approval</span>
+                    <span className="font-semibold text-yellow-300">{tempFormatCurrency(pendingStaffOrdersTotal)}</span>
+                  </div>
+                )}
+                {pendingCustomerOrdersTotal > 0 && (
+                  <div className="flex items-center justify-between mb-1 text-sm">
+                    <span className="text-orange-100">Unserved Customer Orders</span>
+                    <span className="font-semibold text-yellow-300">{tempFormatCurrency(pendingCustomerOrdersTotal)}</span>
+                  </div>
+                )}
+              </>
+            )}
+            
             <div className="flex items-center justify-between mb-2 text-sm">
               <span className="text-orange-100">Payments</span>
               <span className="font-semibold">- {tempFormatCurrency(paymentsTotal)}</span>
@@ -1229,15 +1396,38 @@ export default function TabDetailPage() {
           {/* Action Buttons */}
           <div className="space-y-3 pb-6">
             <button
-              onClick={handleCloseTab}
+              onClick={initiateCloseTab}
               className={`w-full py-4 rounded-xl font-semibold ${
                 balance === 0 
                   ? 'bg-green-500 text-white hover:bg-green-600' 
                   : 'bg-orange-500 text-white hover:bg-orange-600'
-              }`}
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              disabled={hasPendingStaffOrders() || hasPendingCustomerOrders()}
             >
-              {balance === 0 ? 'Close Tab' : `Push to Overdue (${tempFormatCurrency(balance)})`}
+              {balance === 0 
+                ? 'Close Tab' 
+                : `Push to Overdue (${tempFormatCurrency(balance)})`}
             </button>
+            
+            {hasPendingStaffOrders() && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
+                <p className="text-sm text-yellow-700">
+                  ⚠️ Cannot close tab: {pendingStaffOrdersTotal > 0 
+                    ? `${tempFormatCurrency(pendingStaffOrdersTotal)} awaiting customer approval`
+                    : 'Pending orders need attention'}
+                </p>
+              </div>
+            )}
+            
+            {hasPendingCustomerOrders() && !hasPendingStaffOrders() && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
+                <p className="text-sm text-yellow-700">
+                  ⚠️ Cannot close tab: {pendingCustomerOrdersTotal > 0
+                    ? `${tempFormatCurrency(pendingCustomerOrdersTotal)} in unserved orders`
+                    : 'Customer orders need serving'}
+                </p>
+              </div>
+            )}
             
             <button className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300">
               Transfer Tab
@@ -1245,6 +1435,26 @@ export default function TabDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Close Tab Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showCloseConfirm}
+        onClose={() => {
+          setShowCloseConfirm(false);
+          setClosingTab(false);
+        }}
+        onConfirm={executeCloseTab}
+        title={closeTabReason === 'overdue' ? 'Push Tab to Overdue?' : 'Close Tab?'}
+        message={
+          closeTabReason === 'overdue' 
+            ? `This tab has ${tempFormatCurrency(balance)} outstanding balance. Pushing to overdue will mark it as bad debt. This action cannot be undone.`
+            : 'Are you sure you want to close this tab? This action cannot be undone.'
+        }
+        confirmText={closeTabReason === 'overdue' ? 'Push to Overdue' : 'Close Tab'}
+        cancelText="Cancel"
+        type={closeTabReason === 'overdue' ? 'danger' : 'warning'}
+        isLoading={closingTab}
+      />
     </div>
   );
 }
