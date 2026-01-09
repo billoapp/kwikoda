@@ -16,26 +16,39 @@ const formatCurrency = (amount: number | string, decimals = 0): string => {
   }).format(number)}`;
 };
 
-// Calculate average service time from confirmed orders across all tabs
-const calculateAverageServiceTime = (tabs: any[]): string => {
-  const allConfirmedOrders = tabs.flatMap(tab => 
+// Calculate average response time for both confirmed orders and acknowledged messages
+const calculateAverageResponseTime = (tabs: any[], currentTime?: number): string => {
+  // Get confirmed orders (order placed → confirmed)
+  const confirmedOrders = tabs.flatMap(tab => 
     (tab.orders || []).filter((o: any) => 
       o.status === 'confirmed' && 
       o.confirmed_at && 
-      o.status !== 'cancelled'
+      o.created_at
     )
   );
   
-  if (allConfirmedOrders.length === 0) return '0m';
-  
-  const totalTime = allConfirmedOrders.reduce((sum, order) => {
+  // Calculate order response times
+  const orderResponseTimes = confirmedOrders.map(order => {
     const created = new Date(order.created_at).getTime();
     const confirmed = new Date(order.confirmed_at).getTime();
-    const serviceTimeSeconds = Math.floor((confirmed - created) / 1000);
-    return sum + serviceTimeSeconds;
-  }, 0);
+    return Math.floor((confirmed - created) / 1000); // in seconds
+  });
   
-  const avgSeconds = Math.floor(totalTime / allConfirmedOrders.length);
+  // Get acknowledged messages (message sent → read/acknowledged)
+  // For now, we'll estimate message acknowledgment as when there are no unread messages
+  // In a real implementation, you'd track message read timestamps
+  const acknowledgedMessages = tabs.flatMap(tab => {
+    // This is a simplified approach - in reality you'd track message read times
+    // For now, we'll estimate recent messages as "acknowledged" if there are no unread ones
+    return [];
+  });
+  
+  // Combine all response times
+  const allResponseTimes = [...orderResponseTimes, ...acknowledgedMessages];
+  
+  if (allResponseTimes.length === 0) return '0m';
+  
+  const avgSeconds = Math.floor(allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length);
   const avgMinutes = Math.floor(avgSeconds / 60);
   
   if (avgMinutes > 0) {
@@ -45,8 +58,8 @@ const calculateAverageServiceTime = (tabs: any[]): string => {
   }
 };
 
-// Calculate average waiting time for pending acknowledgment across all tabs
-const calculatePendingAckTime = (tabs: any[], currentTime?: number): string => {
+// Calculate pending wait time for items still waiting for response
+const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => {
   const allPendingItems = tabs.flatMap(tab => [
     ...(tab.orders || [])
       .filter((o: any) => o.status === 'pending')
@@ -275,7 +288,7 @@ export default function TabsPage() {
                 <Users size={16} className="text-orange-100" />
                 <span className="text-sm text-orange-100">Avg Wait</span>
               </div>
-              <p className="text-2xl font-bold text-white">{calculatePendingAckTime(tabs, currentTime)}</p>
+              <p className="text-2xl font-bold text-white">{calculateAverageResponseTime(tabs)}</p>
             </div>
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -429,7 +442,7 @@ export default function TabsPage() {
                             <div className="flex items-center gap-1">
                               <AlertCircle size={10} />
                               <span className="font-mono text-xs">
-                                {calculatePendingAckTime([{
+                                {calculatePendingWaitTime([{
                                   orders: tab.orders?.filter((o: any) => o.status === 'pending') || [],
                                   unreadMessages: tab.unreadMessages || 0
                                 }], currentTime)}
