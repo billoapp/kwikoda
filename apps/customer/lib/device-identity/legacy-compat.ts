@@ -193,6 +193,13 @@ export interface DeviceInfo {
   lastSeen: string;
 }
 
+
+// Add this to your existing legacy-compat.ts file, somewhere near the other functions:
+export async function validateDeviceIntegritySimple(barId: string): Promise<{ valid: boolean; reason?: string; warnings?: string[]; existingTab?: any }> {
+  const { supabase } = require('@/lib/supabase'); // Use require to avoid import issues
+  return validateDeviceIntegrity(barId, supabase);
+}
+
 export function getDeviceInfo(): DeviceInfo {
   // This is now async, but for compatibility we'll return a sync version
   console.warn('⚠️ Using deprecated sync getDeviceInfo - switch to async version');

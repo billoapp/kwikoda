@@ -11,6 +11,7 @@ import {
   getBarDeviceKey, 
   hasOpenTabAtBar,
   validateDeviceForNewTab, 
+  getAllOpenTabs,
   storeActiveTab,
   checkAnyOpenTabAtBar,
   isTabLinkedToDevice,
@@ -84,7 +85,7 @@ function LandingContent() {
       console.log('✅ Bar found:', bar.name);
 
       // IMPORTANT: Validate device immediately after QR scan
-      await validateDeviceIntegrity(bar.id);
+      await validateDeviceIntegrity(bar.id, supabase as any);
       
       // Go to consent page
       router.push(`/start?bar=${slug}`);
