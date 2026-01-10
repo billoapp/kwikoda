@@ -121,10 +121,7 @@ export async function isTabLinkedToDevice(
 }
 
 // NEW: Validate only device integrity (not existing tabs)
-export async function validateDeviceIntegrity(
-  barId: string,
-  supabase: ReturnType<typeof createClient>
-): Promise<{ valid: boolean; reason?: string; warnings?: string[]; existingTab?: any }> {
+export async function validateDeviceIntegrity(barId: string, supabase: ReturnType<typeof createClient>): Promise<{ valid: boolean; reason?: string; warnings?: string[]; existingTab?: any }> {
   const { DeviceIdentity } = await import('./generator');
   const device = await DeviceIdentity.initialize();
   
