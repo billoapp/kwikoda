@@ -54,7 +54,8 @@ export default function ReportsPage() {
         .select(`
           *,
           orders:tab_orders(*),
-          payments:tab_payments(*)
+          payments:tab_payments(*),
+          messages:tab_telegram_messages(*)
         `)
         .eq('bar_id', userBarId)
         .order('tab_number', { ascending: false });
@@ -95,28 +96,37 @@ export default function ReportsPage() {
       (tab.orders || []).filter((order: any) => 
         order.status === 'confirmed' && 
         order.created_at && 
-        order.confirmed_at
+        order.confirmed_at &&
+        order.initiated_by === 'customer' // Only count customer-initiated orders
       )
     );
 
-    // Calculate order response times
+    // Calculate order response times (in minutes)
     const orderResponseTimes = confirmedOrders.map(order => {
       const createdTime = new Date(order.created_at).getTime();
       const confirmedTime = new Date(order.confirmed_at).getTime();
       return (confirmedTime - createdTime) / (1000 * 60); // in minutes
     });
 
-    // Get acknowledged messages (message sent → read/acknowledged)
-    // For now, we'll estimate message acknowledgment as when there are no unread messages
-    // In a real implementation, you'd track message read timestamps
-    const acknowledgedMessages = tabs.flatMap(tab => {
-      // This is a simplified approach - in reality you'd track message read times
-      // For now, we'll estimate recent messages as "acknowledged" if there are no unread ones
-      return [];
+    // Get acknowledged customer messages (message sent → staff acknowledged)
+    const acknowledgedMessages = tabs.flatMap(tab => 
+      (tab.messages || []).filter((message: any) => 
+        message.status === 'acknowledged' && 
+        message.staff_acknowledged_at && 
+        message.created_at &&
+        message.initiated_by === 'customer' // Only count customer-initiated messages
+      )
+    );
+
+    // Calculate message response times (in minutes)
+    const messageResponseTimes = acknowledgedMessages.map(message => {
+      const createdTime = new Date(message.created_at).getTime();
+      const acknowledgedTime = new Date(message.staff_acknowledged_at).getTime();
+      return (acknowledgedTime - createdTime) / (1000 * 60); // in minutes
     });
 
     // Combine all response times
-    const allResponseTimes = [...orderResponseTimes, ...acknowledgedMessages];
+    const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
 
     let averageServiceTime = 0;
     if (allResponseTimes.length > 0) {

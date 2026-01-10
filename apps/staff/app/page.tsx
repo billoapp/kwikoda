@@ -19,41 +19,49 @@ const formatCurrency = (amount: number | string, decimals = 0): string => {
 
 // Calculate average response time for both confirmed orders and acknowledged messages
 const calculateAverageResponseTime = (tabs: any[], currentTime?: number): string => {
-  // Get confirmed orders (order placed → confirmed)
+  // Get confirmed orders (order placed → confirmed) - only customer-initiated orders
   const confirmedOrders = tabs.flatMap(tab => 
     (tab.orders || []).filter((o: any) => 
       o.status === 'confirmed' && 
       o.confirmed_at && 
-      o.created_at
+      o.created_at &&
+      o.initiated_by === 'customer' // Only count customer-initiated orders
     )
   );
   
-  // Calculate order response times
+  // Calculate order response times (in minutes)
   const orderResponseTimes = confirmedOrders.map(order => {
     const created = new Date(order.created_at).getTime();
     const confirmed = new Date(order.confirmed_at).getTime();
-    return Math.floor((confirmed - created) / 1000); // in seconds
+    return (confirmed - created) / (1000 * 60); // in minutes
   });
   
-  // Get acknowledged messages (message sent → read/acknowledged)
-  // For now, we'll estimate message acknowledgment as when there are no unread messages
-  // In a real implementation, you'd track message read timestamps
-  const acknowledgedMessages = tabs.flatMap(tab => {
-    // This is a simplified approach - in reality you'd track message read times
-    // For now, we'll estimate recent messages as "acknowledged" if there are no unread ones
-    return [];
+  // Get acknowledged customer messages (message sent → staff acknowledged)
+  const acknowledgedMessages = tabs.flatMap(tab => 
+    (tab.messages || []).filter((m: any) => 
+      m.status === 'acknowledged' && 
+      m.staff_acknowledged_at && 
+      m.created_at &&
+      m.initiated_by === 'customer' // Only count customer-initiated messages
+    )
+  );
+  
+  // Calculate message response times (in minutes)
+  const messageResponseTimes = acknowledgedMessages.map(message => {
+    const created = new Date(message.created_at).getTime();
+    const acknowledged = new Date(message.staff_acknowledged_at).getTime();
+    return (acknowledged - created) / (1000 * 60); // in minutes
   });
   
   // Combine all response times
-  const allResponseTimes = [...orderResponseTimes, ...acknowledgedMessages];
+  const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
   
   if (allResponseTimes.length === 0) return '0m';
   
-  const avgSeconds = Math.floor(allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length);
-  const avgMinutes = Math.floor(avgSeconds / 60);
+  const avgMinutes = allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length;
   
-  if (avgMinutes > 0) {
-    return `${avgMinutes}m`;
+  if (avgMinutes >= 1) {
+    return `${avgMinutes.toFixed(1)}m`;
   } else {
     return '<1m';
   }
@@ -141,7 +149,7 @@ export default function TabsPage() {
           const [ordersResult, paymentsResult, messagesResult] = await Promise.all([
             supabase
               .from('tab_orders')
-              .select('id, total, status, created_at, confirmed_at')
+              .select('id, total, status, created_at, confirmed_at, initiated_by')
               .eq('tab_id', tab.id)
               .order('created_at', { ascending: false }),
             
@@ -153,9 +161,9 @@ export default function TabsPage() {
               
             supabase
               .from('tab_telegram_messages')
-              .select('id, status, created_at')
+              .select('id, status, created_at, staff_acknowledged_at, initiated_by')
               .eq('tab_id', tab.id)
-              .eq('status', 'pending')
+              .in('status', ['pending', 'acknowledged'])
           ]);
 
           return {
