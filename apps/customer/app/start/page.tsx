@@ -1,4 +1,4 @@
-// app/start/page.tsx - COMPLETE WITH DEVICE VALIDATION
+// app/start/page.tsx - FIXED VERSION
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -8,9 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   getDeviceId, 
   getBarDeviceKey, 
-  validateDeviceForNewTab, 
-  storeActiveTab,
-  checkAnyOpenTabAtBar
+  storeActiveTab
 } from '@/lib/device-identity';
 import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
@@ -33,20 +31,12 @@ function ConsentContent() {
   // Loading states
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [validating, setValidating] = useState(false);
   
   // Bar data
   const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
   const [barName, setBarName] = useState<string>('');
   const [error, setError] = useState<string>('');
-  
-  // Device validation
-  const [deviceValidation, setDeviceValidation] = useState<{
-    valid: boolean;
-    reason?: string;
-    existingTab?: any;
-  } | null>(null);
   
   const [debugDeviceId, setDebugDeviceId] = useState<string>('');
 
@@ -133,67 +123,6 @@ function ConsentContent() {
     }
   };
 
-  const validateDevice = async (barId: string) => {
-    try {
-      setValidating(true);
-      console.log('🔒 Validating device for bar:', barId);
-      
-      const deviceId = await getDeviceId();
-      console.log('🆔 Device ID:', deviceId);
-      
-      const validation = await validateDeviceForNewTab(barId, supabase as any);
-      
-      console.log('✅ Device validation result:', validation);
-      setDeviceValidation(validation);
-      
-      // If device has existing tab at this bar, redirect immediately
-      if (!validation.valid && validation.reason === 'EXISTING_TAB_AT_BAR') {
-        console.log('🔄 Existing tab found, redirecting to menu');
-        
-        const existingTab = validation.existingTab;
-        
-        // Parse display name
-        let displayName = `Tab ${existingTab.tab_number}`;
-        try {
-          const notes = JSON.parse(existingTab.notes || '{}');
-          displayName = notes.display_name || displayName;
-        } catch (e) {
-          console.warn('Failed to parse tab notes:', e);
-        }
-
-        // Store tab data - use fresh bar name from current lookup
-        storeActiveTab(barId, existingTab);
-        sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
-        sessionStorage.setItem('displayName', displayName);
-        sessionStorage.setItem('barName', barName); // barName was set in loadBarInfo from current slug lookup
-        
-        showToast({
-          type: 'success',
-          title: 'Tab Found!',
-          message: `Continuing to your ${displayName}`
-        });
-
-        // Redirect to menu
-        setTimeout(() => {
-          router.replace('/menu');
-        }, 500);
-        
-        return; // Don't set loading to false, we're redirecting
-      }
-      
-      // Device is valid, show consent form
-      setLoading(false);
-      setValidating(false);
-      
-    } catch (error) {
-      console.error('❌ Error validating device:', error);
-      // On validation error, still allow form to show
-      setDeviceValidation({ valid: true });
-      setLoading(false);
-      setValidating(false);
-    }
-  };
-
   const handleStartTab = async () => {
     if (!termsAccepted) {
       showToast({
@@ -226,13 +155,17 @@ function ConsentContent() {
       console.log('👤 Nickname:', nickname || '(none)');
       console.log('🔑 Bar Device Key:', barDeviceKey);
       
-      // Re-validate device before creating tab (double-check)
-      const validation = await validateDeviceForNewTab(barId, supabase as any);
-      
-      if (!validation.valid && validation.reason === 'EXISTING_TAB_AT_BAR') {
+      // Check for existing tab one more time (safety check)
+      const { data: existingTab } = await (supabase as any)
+        .from('tabs')
+        .select('*')
+        .eq('bar_id', barId)
+        .eq('owner_identifier', barDeviceKey)
+        .eq('status', 'open')
+        .maybeSingle();
+
+      if (existingTab) {
         console.log('🔄 Existing tab found during creation, reusing it');
-        
-        const existingTab = validation.existingTab;
         
         // Update nickname if provided
         if (nickname.trim()) {
@@ -451,20 +384,15 @@ function ConsentContent() {
   };
 
   // Loading state
-  if (loading || validating) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p className="text-lg font-medium">
-            {validating ? 'Checking for existing tabs...' : 'Loading bar information...'}
+            Loading bar information...
           </p>
           {barSlug && <p className="text-sm mt-2 font-mono opacity-75">{barSlug}</p>}
-          {validating && (
-            <p className="text-xs mt-3 opacity-75">
-              🔒 Validating device to prevent duplicate tabs
-            </p>
-          )}
         </div>
       </div>
     );
@@ -514,16 +442,6 @@ function ConsentContent() {
           <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
           <p className="text-sm text-gray-600">Ready to start your tab</p>
         </div>
-
-        {/* Device Validation Success */}
-        {deviceValidation?.valid && (
-          <div className="mb-6 p-3 bg-green-50 rounded-xl border border-green-200 flex items-center gap-3">
-            <CheckCircle size={20} className="text-green-600 flex-shrink-0" />
-            <p className="text-sm text-green-800">
-              Device verified • No duplicate tabs detected
-            </p>
-          </div>
-        )}
 
         {/* Trust Statement */}
         <div className="text-center mb-6">

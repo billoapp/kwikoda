@@ -1,4 +1,4 @@
-// app/page.tsx - IMPROVED VERSION
+// app/page.tsx - IMPROVED VERSION WITH PROPER FEEDBACK
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -29,6 +29,7 @@ function LandingContent() {
   const [existingTabs, setExistingTabs] = useState<any[]>([]);
   const [showExistingTabsModal, setShowExistingTabsModal] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const pushManager = new PushNotificationManager();
 
   useEffect(() => {
@@ -43,55 +44,140 @@ function LandingContent() {
   }, []);
   
   const initializeLanding = async () => {
-    // Check if there's a slug in URL (from QR code scan)
-    const slug = searchParams.get('bar') || searchParams.get('slug');
-    
-    console.log('🔍 Landing page initialized');
-    console.log('📍 URL slug:', slug);
-    console.log('🆔 Device ID:', getDeviceId());
-    
-    if (slug) {
-      // Store slug for later use
-      sessionStorage.setItem('scanned_bar_slug', slug);
-      console.log('✅ Stored bar slug:', slug);
+    try {
+      setIsInitializing(true);
+      // Check if there's a slug in URL (from QR code scan)
+      const slug = searchParams.get('bar') || searchParams.get('slug');
       
-      // Get bar info
-      const { data: bar, error: barError } = await (supabase as any)
-        .from('bars')
-        .select('id, name, active, slug')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (barError || !bar) {
-        console.log('❌ Bar not found:', barError?.message || 'Bar not found');
-        showToast({
-          type: 'error',
-          title: 'Invalid Bar Code',
-          message: `Bar "${slug}" not found. Please scan a valid QR code.`
-        });
-        return;
-      }
-
-      if (!bar.active) {
-        console.log('❌ Bar inactive:', bar.name);
-        showToast({
-          type: 'warning',
-          title: 'Bar Unavailable',
-          message: `${bar.name} is currently unavailable.`
-        });
-        return;
-      }
-
-      console.log('✅ Bar found:', bar.name);
-
-      // IMPORTANT: Validate device immediately after QR scan
-      await validateDeviceIntegrity(bar.id, supabase as any);
+      console.log('🔍 Landing page initialized');
+      console.log('📍 URL slug:', slug);
+      console.log('🆔 Device ID:', await getDeviceId());
       
-      // Go to consent page
-      router.push(`/start?bar=${slug}`);
-    } else {
-      // No slug - show all open tabs if any
-      await loadAllOpenTabs();
+      if (slug) {
+        // Store slug for later use
+        sessionStorage.setItem('scanned_bar_slug', slug);
+        console.log('✅ Stored bar slug:', slug);
+        
+        // Get bar info
+        const { data: bar, error: barError } = await (supabase as any)
+          .from('bars')
+          .select('id, name, active, slug')
+          .eq('slug', slug)
+          .maybeSingle();
+
+        if (barError || !bar) {
+          console.log('❌ Bar not found:', barError?.message || 'Bar not found');
+          showToast({
+            type: 'error',
+            title: 'Invalid Bar Code',
+            message: `Bar "${slug}" not found. Please scan a valid QR code.`
+          });
+          setIsInitializing(false);
+          return;
+        }
+
+        if (!bar.active) {
+          console.log('❌ Bar inactive:', bar.name);
+          showToast({
+            type: 'warning',
+            title: 'Bar Unavailable',
+            message: `${bar.name} is currently unavailable.`
+          });
+          setIsInitializing(false);
+          return;
+        }
+
+        console.log('✅ Bar found:', bar.name);
+
+        // FIRST: Check for existing tab BEFORE validating device
+        setCheckingTab(true);
+        const { hasTab, tab } = await hasOpenTabAtBar(bar.id, supabase as any);
+        setCheckingTab(false);
+
+        if (hasTab && tab) {
+          console.log('✅ EXISTING TAB FOUND!');
+          console.log('📋 Tab details:', {
+            tab_number: tab.tab_number,
+            status: tab.status,
+            opened_at: tab.opened_at
+          });
+          
+          // Parse display name from notes
+          let displayName = `Tab ${tab.tab_number}`;
+          try {
+            const notes = JSON.parse(tab.notes || '{}');
+            displayName = notes.display_name || displayName;
+          } catch (e) {
+            console.warn('Failed to parse tab notes:', e);
+          }
+
+          // Store tab data in session
+          storeActiveTab(bar.id, tab);
+          sessionStorage.setItem('currentTab', JSON.stringify(tab));
+          sessionStorage.setItem('displayName', displayName);
+          sessionStorage.setItem('barName', bar.name);
+          
+          showToast({
+            type: 'success',
+            title: 'Welcome Back!',
+            message: `Continuing to your ${displayName} at ${bar.name}`
+          });
+
+          // Navigate directly to menu (bypass consent)
+          console.log('🚀 Navigating to menu (bypassing consent)');
+          setTimeout(() => {
+            router.replace('/menu');
+          }, 800); // Give user time to see the toast
+          
+          return; // STOP HERE - user goes to menu
+        }
+
+        console.log('ℹ️ No existing tab found');
+        
+        // Only validate device if creating NEW tab
+        console.log('🔒 Validating device for new tab...');
+        const validation = await validateDeviceIntegrity(bar.id, supabase as any);
+        
+        if (!validation.valid) {
+          console.log('❌ Device validation failed:', validation.reason);
+          showToast({
+            type: validation.reason === 'LOW_INTEGRITY_SCORE' ? 'warning' : 'error',
+            title: validation.reason === 'LOW_INTEGRITY_SCORE' ? 'Device Check' : 'Tab Issue',
+            message: validation.reason === 'LOW_INTEGRITY_SCORE' 
+              ? 'Please refresh the page and try again'
+              : 'There seems to be an issue with your tab. Please contact staff.'
+          });
+          
+          // Don't redirect - let user see the landing page
+          setIsInitializing(false);
+          return;
+        }
+        
+        console.log('✅ Device validated - showing consent page');
+        showToast({
+          type: 'info',
+          title: 'Ready to Start',
+          message: `No existing tab found at ${bar.name}. Let's create one!`
+        });
+        
+        // No existing tab - go to consent page after brief delay
+        setTimeout(() => {
+          router.push(`/start?bar=${slug}`);
+        }, 800); // Give user time to see the toast
+        
+      } else {
+        // No slug - show all open tabs if any
+        await loadAllOpenTabs();
+        setIsInitializing(false);
+      }
+    } catch (error) {
+      console.error('❌ Error in initializeLanding:', error);
+      showToast({
+        type: 'error',
+        title: 'Connection Error',
+        message: 'Failed to initialize. Please try again.'
+      });
+      setIsInitializing(false);
     }
   };
 
@@ -181,17 +267,41 @@ function LandingContent() {
         console.log('🚀 Navigating to menu (bypassing consent)');
         setTimeout(() => {
           router.replace('/menu');
-        }, 500); // Brief delay to show toast
+        }, 800); // Give user time to see the toast
         
         return;
       }
 
-      console.log('ℹ️ No existing tab found - will show consent page');
+      console.log('ℹ️ No existing tab found');
       
-      // No existing tab - go to consent page after a brief delay
+      // Validate device before creating new tab
+      console.log('🔒 Validating device for new tab...');
+      const validation = await validateDeviceIntegrity(bar.id, supabase as any);
+      
+      if (!validation.valid) {
+        console.log('❌ Device validation failed:', validation.reason);
+        showToast({
+          type: validation.reason === 'LOW_INTEGRITY_SCORE' ? 'warning' : 'error',
+          title: validation.reason === 'LOW_INTEGRITY_SCORE' ? 'Device Check' : 'Tab Issue',
+          message: validation.reason === 'LOW_INTEGRITY_SCORE' 
+            ? 'Please refresh the page and try again'
+            : 'There seems to be an issue with your tab. Please contact staff.'
+        });
+        setCheckingTab(false);
+        return;
+      }
+      
+      console.log('✅ Device validated - showing consent page');
+      showToast({
+        type: 'info',
+        title: 'Ready to Start',
+        message: `No existing tab found at ${bar.name}. Let's create one!`
+      });
+      
+      // No existing tab - go to consent page after brief delay
       setTimeout(() => {
         router.push(`/start?bar=${barSlug}`);
-      }, 300);
+      }, 800); // Give user time to see the toast
 
     } catch (error) {
       console.error('❌ Error checking existing tab:', error);
@@ -274,6 +384,11 @@ function LandingContent() {
     router.replace('/menu');
   };
 
+  const handleStartNewTab = () => {
+    setShowExistingTabsModal(false);
+    // User will scan new QR code or enter manual code
+  };
+
   const benefits = [
     {
       icon: Zap,
@@ -299,6 +414,19 @@ function LandingContent() {
 
   const slug = searchParams.get('bar') || searchParams.get('slug') || '';
 
+  // Show loading state while initializing
+  if (isInitializing && slug) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-lg font-medium">Checking for your tab...</p>
+          <p className="text-sm mt-2 opacity-75">at {slug}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
       {/* Logo */}
@@ -308,6 +436,12 @@ function LandingContent() {
 
       {/* Main Card */}
       <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full flex-1 flex flex-col">
+        {/* Welcome Message */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Tabēza</h1>
+          <p className="text-gray-600">Scan a bar's QR code to start</p>
+        </div>
+
         {/* Benefits Grid */}
         <div className="space-y-4 mb-8">
           {benefits.map((benefit, index) => (
@@ -346,7 +480,7 @@ function LandingContent() {
               disabled={checkingTab || !manualCode.trim()}
               className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
             >
-              Go
+              {checkingTab ? '...' : 'Go'}
             </button>
           </div>
         </div>
@@ -430,7 +564,7 @@ function LandingContent() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => setShowExistingTabsModal(false)}
+                onClick={handleStartNewTab}
                 className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition"
               >
                 Start New Tab
