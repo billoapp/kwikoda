@@ -7,6 +7,7 @@ import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, U
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
+import { checkTabOverdueStatus } from '@/lib/businessHours';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -343,6 +344,9 @@ export default function TabDetailPage() {
         } catch (e) {}
       }
       setDisplayName(name);
+
+      // Check if tab should be marked as overdue based on business hours
+      await checkTabOverdueStatus(tabData.id);
 
     } catch (error) {
       console.error('❌ Error loading tab:', error);

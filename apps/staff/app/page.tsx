@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut, AlertTriangle, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
+import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -131,6 +132,9 @@ export default function TabsPage() {
         .order('tab_number', { ascending: false });
 
       if (error) throw error;
+
+      // Check for overdue tabs based on business hours
+      await checkAndUpdateOverdueTabs(tabsData || []);
 
       const tabsWithDetails = await Promise.all(
         (tabsData || []).map(async (tab: any) => {

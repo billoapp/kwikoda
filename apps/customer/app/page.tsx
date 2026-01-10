@@ -261,73 +261,21 @@ function LandingContent() {
     }
   ];
 
-  const slug = searchParams.get('bar') || searchParams.get('slug');
+  const slug = searchParams.get('bar') || searchParams.get('slug') || '';
 
   return (
-    <div className="h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center p-4">
-      {/* Existing Tabs Modal */}
-      {showExistingTabsModal && existingTabs.length > 0 && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertCircle size={24} className="text-orange-600" />
-              <h2 className="text-xl font-bold">Open Tabs Found</h2>
-            </div>
-            
-            <p className="text-gray-600 mb-4">
-              You have {existingTabs.length} open tab{existingTabs.length > 1 ? 's' : ''} at:
-            </p>
-            
-            <div className="space-y-3">
-              {existingTabs.map((tab) => {
-                const bar = tab.bars;
-                let displayName = `Tab ${tab.tab_number}`;
-                try {
-                  const notes = JSON.parse(tab.notes || '{}');
-                  displayName = notes.display_name || displayName;
-                } catch (e) {}
-                
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleContinueToExistingTab(tab)}
-                    className="w-full text-left p-4 bg-gray-50 rounded-xl hover:bg-orange-50 transition border border-gray-200"
-                  >
-                    <div className="font-semibold text-gray-800">{bar.name}</div>
-                    <div className="text-sm text-gray-600">{displayName}</div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Opened: {new Date(tab.opened_at).toLocaleTimeString()}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            
-            <button
-              onClick={() => setShowExistingTabsModal(false)}
-              className="w-full mt-4 py-3 text-gray-600 hover:text-gray-800 font-medium"
-            >
-              Start New Tab Instead
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Header with Logo */}
-      <div className="text-white text-center mb-6">
-        <div className="flex items-center justify-center mb-4">
-          <Logo size="lg" variant="white" />
-        </div>
-        <h1 className="text-4xl font-bold mb-2">Tabeza</h1>
-        <p className="text-lg text-orange-100">Order smarter, not harder</p>
+    <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
+      {/* Logo */}
+      <div className="absolute top-8 left-0 right-0 flex justify-center">
+        <Logo size="lg" className="text-white" />
       </div>
-      
+
       {/* Main Card */}
       <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full flex-1 flex flex-col">
         {/* Benefits Grid */}
         <div className="space-y-4 mb-8">
           {benefits.map((benefit, index) => (
-            <div 
+            <div
               key={index}
               className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition"
             >
@@ -397,6 +345,61 @@ function LandingContent() {
           </p>
         )}
       </div>
+
+      {/* Existing Tabs Modal */}
+      {showExistingTabsModal && existingTabs.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertCircle className="text-orange-500" size={24} />
+              <h2 className="text-xl font-bold text-gray-800">Existing Tabs Found</h2>
+            </div>
+            <p className="text-gray-600 mb-6">
+              You have open tabs at the following bars:
+            </p>
+            <div className="space-y-3 mb-6 max-h-64 overflow-y-auto">
+              {existingTabs.map((tab, index) => (
+                <div
+                  key={index}
+                  className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleContinueToExistingTab(tab)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">
+                        {tab.bars?.name || 'Unknown Bar'}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Tab {tab.tab_number} • {new Date(tab.opened_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
+                      ${tab.balance || '0.00'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExistingTabsModal(false)}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition"
+              >
+                Start New Tab
+              </button>
+              <button
+                onClick={() => {
+                  setShowExistingTabsModal(false);
+                  handleStart();
+                }}
+                className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition"
+              >
+                Scan New Code
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

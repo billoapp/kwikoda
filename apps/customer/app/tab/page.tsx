@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Clock, CheckCircle, CreditCard, RefreshCw, User, UserCog, ThumbsUp, X } from 'lucide-react';
+import { ShoppingCart, Clock, CheckCircle, CreditCard, RefreshCw, User, UserCog, ThumbsUp, X, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency, formatDigitalTime } from '@/lib/formatUtils';
 import { useToast } from '@/components/ui/Toast';
+import { checkTabOverdueStatus } from '@/lib/businessHours';
 
 export default function TabPage() {
   const router = useRouter();
@@ -20,6 +21,12 @@ export default function TabPage() {
 
   useEffect(() => {
     loadTabData();
+    // Check if tab should be marked as overdue based on business hours
+    const tabData = sessionStorage.getItem('currentTab');
+    if (tabData) {
+      const currentTab = JSON.parse(tabData);
+      checkTabOverdueStatus(currentTab.id);
+    }
   }, []);
 
   // Real-time subscription for order updates
