@@ -475,7 +475,7 @@ function LandingContent() {
       <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full flex-1 flex flex-col">
         {/* Welcome Message */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Tabēza</h1>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Tabeza</h1>
           <p className="text-gray-600">Scan a bar's QR code to start</p>
         </div>
 

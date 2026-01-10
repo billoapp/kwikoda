@@ -8,7 +8,7 @@ import { Analytics } from '@vercel/analytics/next';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://tabeza.co.ke'), // Update with your actual domain
+  metadataBase: new URL('https://tabeza.co.ke'), // Tabeza platform URL
   
   title: {
     default: 'Tabeza Venue - Digital Tab System',

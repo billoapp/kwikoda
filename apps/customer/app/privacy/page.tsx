@@ -74,7 +74,7 @@ export default function PrivacyPage() {
 
           <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3">6. Contact</h2>
           <p className="text-gray-700 mb-4">
-            For privacy questions: privacy@Tabeza.com
+            For privacy questions: privacy@Tabeza
           </p>
         </div>
 

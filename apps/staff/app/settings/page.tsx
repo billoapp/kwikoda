@@ -481,7 +481,7 @@ export default function SettingsPage() {
     }
   };
 
-  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://app.tabeza.co.ke';
+  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://app.tabeza.co.ke'; // Tabeza customer app URL
 
   const handleCopyQRUrl = () => {
     if (barInfo.slug) {
