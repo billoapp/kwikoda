@@ -373,7 +373,7 @@ export default function TabsPage() {
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {['all', 'pending', 'open', 'closed'].map(status => (
+            {['all', 'pending', 'open', 'overdue', 'closed'].map(status => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
