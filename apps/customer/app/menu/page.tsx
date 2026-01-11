@@ -1014,11 +1014,19 @@ export default function MenuPage() {
     ? barProducts
     : barProducts.filter(bp => bp.product?.category === selectedCategory);
 
+  // Apply search filter
   if (searchQuery.trim()) {
     filteredProducts = filteredProducts.filter(bp =>
       bp.product?.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }
+
+  // Sort alphabetically by product name
+  filteredProducts.sort((a, b) => {
+    const nameA = a.product?.name || '';
+    const nameB = b.product?.name || '';
+    return nameA.localeCompare(nameB);
+  });
 
   const addToCart = (barProduct: BarProduct) => {
     const product = barProduct.product;
@@ -1535,6 +1543,16 @@ export default function MenuPage() {
                     </button>
                   ))}
                 </div>
+                {/* Search Field */}
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
               </div>
               <div className="relative">
                 <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
@@ -1553,11 +1571,13 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 p-3"
+                            className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 p-3 h-24"
                             onClick={() => addToCart(barProduct)}
                           >
-                            <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
-                            <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
+                            <div className="flex-1 flex flex-col justify-center">
+                              <h3 className="text-sm font-medium text-gray-900 text-center truncate">{product.name || 'Product'}</h3>
+                              <p className="text-xs text-gray-500 mt-1 text-center">{tempFormatCurrency(barProduct.sale_price)}</p>
+                            </div>
                           </div>
                         </div>
                       );
