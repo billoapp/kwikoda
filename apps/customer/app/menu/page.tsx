@@ -1542,11 +1542,10 @@ export default function MenuPage() {
                     {filteredProducts.map((barProduct, index) => {
                       const product = barProduct.product;
                       if (!product) return null;
-                      const displayImage = product ? getDisplayImage(product, product.category) : null;
                       return (
                         <div
                           key={barProduct.id}
-                          className="flex-shrink-0 w-64 transform transition-all duration-300 hover:scale-105"
+                          className="flex-shrink-0 w-40 transform transition-all duration-300 hover:scale-105"
                           style={{ 
                             animationDelay: `${index * 50}ms`,
                             opacity: interactiveMenuCollapsed ? 0 : 1,
@@ -1554,36 +1553,11 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
+                            className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 p-3"
                             onClick={() => addToCart(barProduct)}
                           >
-                            <div className="w-full pb-[125%] relative bg-gray-100">
-                              {displayImage ? (
-                                <img
-                                  src={displayImage}
-                                  alt={product.name || 'Product'}
-                                  className="absolute inset-0 w-full h-full object-contain transition-transform duration-300"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    const parent = e.currentTarget.parentElement;
-                                    if (parent) {
-                                      const fallback = document.createElement('div');
-                                      fallback.className = 'absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
-                                      fallback.textContent = product.category?.charAt(0) || 'P';
-                                      parent.appendChild(fallback);
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
-                                  {product.category?.charAt(0) || 'P'}
-                                </div>
-                              )}
-                            </div>
-                            <div className="p-4">
-                              <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
-                              <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
-                            </div>
+                            <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
+                            <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
                           </div>
                         </div>
                       );
