@@ -829,33 +829,34 @@ export default function TabDetailPage() {
 
   const completeTelegramMessage = async (messageId: string) => {
     try {
-      console.log('✅ Completing telegram message:', messageId);
+      console.log('✅ Acknowledging telegram message:', messageId);
       
       const { data, error } = await (supabase as any)
         .from('tab_telegram_messages')
         .update({
-          status: 'completed',
+          status: 'acknowledged',
+          staff_acknowledged_at: new Date().toISOString(),
           customer_notified: true,
           customer_notified_at: new Date().toISOString()
         })
         .eq('id', messageId)
-        .in('status', ['pending', 'acknowledged'])
+        .in('status', ['pending'])
         .select()
         .single();
       
       if (error) {
-        console.error('❌ Failed to complete message:', error);
+        console.error('❌ Failed to acknowledge message:', error);
         showToast({
           type: 'error',
-          title: 'Failed to Complete',
+          title: 'Failed to Acknowledge',
           message: 'Please try again'
         });
       } else {
-        console.log('✅ Message completed:', data);
+        console.log('✅ Message acknowledged:', data);
         showToast({
           type: 'success',
-          title: 'Message Completed',
-          message: 'Request has been marked as completed'
+          title: 'Message Acknowledged',
+          message: 'Request has been marked as acknowledged'
         });
         
         // Refresh messages
@@ -863,10 +864,10 @@ export default function TabDetailPage() {
       }
       
     } catch (error: any) {
-      console.error('❌ Error completing message:', error);
+      console.error('❌ Error acknowledging message:', error);
       showToast({
         type: 'error',
-        title: 'Failed to Complete',
+        title: 'Failed to Acknowledge',
         message: 'Please try again'
       });
     }
@@ -1091,7 +1092,6 @@ export default function TabDetailPage() {
                     <div key={msg.id} className={`p-4 rounded-lg border ${
                       msg.status === 'pending' ? 'bg-yellow-50 border-yellow-100' :
                       msg.status === 'acknowledged' ? 'bg-blue-50 border-blue-100' :
-                      msg.status === 'completed' ? 'bg-green-50 border-green-100' :
                       'bg-gray-50 border-gray-100'
                     }`}>
                       <div className="flex items-start justify-between">
@@ -1102,7 +1102,6 @@ export default function TabDetailPage() {
                             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                               msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                               msg.status === 'acknowledged' ? 'bg-blue-100 text-blue-700' :
-                              msg.status === 'completed' ? 'bg-green-100 text-green-700' :
                               'bg-gray-100 text-gray-700'
                             }`}>
                               {msg.status}
@@ -1119,10 +1118,10 @@ export default function TabDetailPage() {
                           </button>
                           <button
                             onClick={() => completeTelegramMessage(msg.id)}
-                            className="p-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                            disabled={msg.status === 'completed'}
+                            className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                            disabled={msg.status === 'acknowledged'}
                           >
-                            Done
+                            Acknowledge
                           </button>
                         </div>
                       </div>

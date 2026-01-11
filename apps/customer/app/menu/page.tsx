@@ -454,7 +454,7 @@ export default function MenuPage() {
             // Calculate and update unread messages count
             const unreadCount = messages.filter((msg: any) => 
               msg.initiated_by === 'staff' && 
-              msg.status !== 'completed'
+              msg.status === 'pending'
             ).length;
             setUnreadMessagesCount(unreadCount);
             
@@ -488,24 +488,6 @@ export default function MenuPage() {
               setNewMessageAlert({
                 type: 'acknowledged',
                 message: 'Staff has acknowledged your message',
-                timestamp: new Date().toISOString()
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
-            }
-            
-            // Show notification for message completed
-            if (payload.new?.status === 'completed' && 
-                payload.old?.status !== 'completed') {
-              
-              buzz([200, 100, 200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'completed',
-                message: 'Your request has been completed!',
                 timestamp: new Date().toISOString()
               });
               
@@ -1249,7 +1231,7 @@ export default function MenuPage() {
         // Calculate unread messages count
         const unreadCount = data.filter(msg => 
           msg.initiated_by === 'staff' && 
-          msg.status !== 'completed'
+          msg.status === 'pending'
         ).length;
         setUnreadMessagesCount(unreadCount);
       }
@@ -1445,10 +1427,6 @@ export default function MenuPage() {
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                   <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'completed').length} Completed</span>
-                </div>
               </div>
             )}
             
@@ -1459,7 +1437,7 @@ export default function MenuPage() {
                 className={`p-3 rounded-lg mb-2 ${
                   msg.status === 'pending' ? 'bg-yellow-50 border border-yellow-100' :
                   msg.status === 'acknowledged' ? 'bg-blue-50 border border-blue-100' :
-                  'bg-green-50 border border-green-100'
+                  'bg-gray-50 border border-gray-100'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -2192,14 +2170,14 @@ export default function MenuPage() {
         </div>
       )}
       {cartCount > 0 && (
-        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-20 border-2 border-blue-300">
+        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-[60] border-2 border-blue-300">
           <ShoppingCart size={24} />
           <span className="font-bold">{cartCount}</span>
           <span className="ml-2 font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
         </button>
       )}
       {acceptanceModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
           <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl transform animate-fadeIn">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

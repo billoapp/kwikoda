@@ -187,7 +187,6 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                                 <span className="text-xs">•</span>
                                 {msg.status === 'pending' && <Clock size={12} className="text-yellow-600" />}
                                 {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-yellow-700" />}
-                                {msg.status === 'completed' && <CheckCircle size={12} className="text-green-600" />}
                                 <span className="text-xs capitalize font-medium">{msg.status}</span>
                               </>
                             )}
