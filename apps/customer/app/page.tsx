@@ -205,7 +205,7 @@ function LandingContent() {
     console.log('📝 Manual code entered:', slug);
     sessionStorage.setItem('scanned_bar_slug', slug);
     
-    router.push(`/consent?bar=${slug}`);
+    router.push(`/start?bar=${slug}`);
   };
 
   const handleStart = async () => {
@@ -222,7 +222,7 @@ function LandingContent() {
       handleScanNewCode();
     } else {
       console.log('✅ Code provided, going to consent page');
-      router.push(`/consent?bar=${slug}`);
+      router.push(`/start?bar=${slug}`);
     }
   };
 
@@ -260,7 +260,7 @@ function LandingContent() {
         
         // Redirect to consent page with scanner intent
         setTimeout(() => {
-          router.push('/consent?scanner=true');
+          router.push('/start?scanner=true');
         }, 1000);
         
       } catch (error) {
@@ -275,7 +275,7 @@ function LandingContent() {
         
         // Still redirect to consent page but without scanner
         setTimeout(() => {
-          router.push('/consent');
+          router.push('/start');
         }, 2000);
       }
     } else {
@@ -288,7 +288,7 @@ function LandingContent() {
       
       // Redirect to consent page for manual entry
       setTimeout(() => {
-        router.push('/consent');
+        router.push('/start');
       }, 2000);
     }
   };
