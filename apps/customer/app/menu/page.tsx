@@ -1556,14 +1556,14 @@ export default function MenuPage() {
               </div>
               <div className="relative">
                 <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
-                  <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
+                  <div className="grid grid-cols-3 gap-3 pb-4" style={{ paddingLeft: '16px' }}>
                     {filteredProducts.map((barProduct, index) => {
                       const product = barProduct.product;
                       if (!product) return null;
                       return (
                         <div
                           key={barProduct.id}
-                          className="flex-shrink-0 w-40 transform transition-all duration-300 hover:scale-105"
+                          className="transform transition-all duration-300 hover:scale-105"
                           style={{ 
                             animationDelay: `${index * 50}ms`,
                             opacity: interactiveMenuCollapsed ? 0 : 1,
@@ -1571,12 +1571,12 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 p-3 h-24"
+                            className="bg-white rounded-2xl overflow-hidden border-2 border-orange-400 cursor-pointer flex flex-col transition-all duration-300 p-3 h-16"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="flex-1 flex flex-col justify-center">
-                              <h3 className="text-sm font-medium text-gray-900 text-center truncate">{product.name || 'Product'}</h3>
-                              <p className="text-xs text-gray-500 mt-1 text-center">{tempFormatCurrency(barProduct.sale_price)}</p>
+                              <h3 className="text-sm font-medium text-gray-900 text-left truncate">{product.name || 'Product'}</h3>
+                              <p className="text-xs text-gray-500 mt-1 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
                           </div>
                         </div>
