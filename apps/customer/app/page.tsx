@@ -352,57 +352,8 @@ function LandingContent() {
     console.log('📝 Manual code entered:', slug);
     sessionStorage.setItem('scanned_bar_slug', slug);
     
-    // Immediately check for existing tab
-    await checkExistingTabBySlug(slug);
-  };
-
-  const handleStart = async () => {
-    const slug = 
-      searchParams.get('bar') || 
-      searchParams.get('slug') || 
-      sessionStorage.getItem('scanned_bar_slug') || 
-      manualCode.trim();
-    
-    console.log('🚀 Start clicked, bar slug:', slug);
-    
-    if (!slug) {
-      showToast({
-        type: 'error',
-        title: 'No Bar Code',
-        message: 'Please scan a QR code or enter a bar code'
-      });
-      return;
-    }
-
-    // Check for existing tab before proceeding
-    await checkExistingTabBySlug(slug);
-  };
-
-  const handleContinueToExistingTab = (tab: any) => {
-    const bar = tab.bars;
-    
-    // Store tab data
-    storeActiveTab(tab.bar_id, tab);
-    sessionStorage.setItem('currentTab', JSON.stringify(tab));
-    sessionStorage.setItem('barName', bar.name);
-    
-    let displayName = `Tab ${tab.tab_number}`;
-    try {
-      const notes = JSON.parse(tab.notes || '{}');
-      displayName = notes.display_name || displayName;
-    } catch (e) {}
-    sessionStorage.setItem('displayName', displayName);
-    
-    // Clear the "just created" flag since we're continuing existing tab
-    sessionStorage.removeItem('just_created_tab');
-    
-    showToast({
-      type: 'success',
-      title: 'Welcome Back!',
-      message: `Opening ${displayName} at ${bar.name}`
-    });
-
-    router.replace('/menu');
+    // Go to consent page with the provided code
+    router.push(`/consent?bar=${slug}`);
   };
 
   const handleStartNewTab = () => {
@@ -423,7 +374,36 @@ function LandingContent() {
     // Clear the flag when user explicitly wants to scan new code
     sessionStorage.removeItem('just_created_tab');
     setShowExistingTabsModal(false);
-    handleStart();
+    
+    // Check if running in a mobile environment that supports camera access
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Try to access camera for QR scanning
+      try {
+        // Request camera permissions and start QR scanner
+        navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        }).then(async (stream) => {
+          // Stop the stream immediately - we just needed to check permission
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Navigate to consent page with scanner intent
+          router.push('/consent?scanner=true');
+        }).catch((error) => {
+          console.log('Camera access denied or not available:', error);
+          // Fallback to consent page without scanner
+          router.push('/consent');
+        });
+      } catch (error) {
+        console.log('Scanner not supported:', error);
+        // Fallback to consent page without scanner
+        router.push('/consent');
+      }
+    } else {
+      // Desktop environment - go to consent page
+      router.push('/consent');
+    }
   };
 
   const benefits = [

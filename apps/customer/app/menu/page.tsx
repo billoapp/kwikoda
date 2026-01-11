@@ -2177,9 +2177,25 @@ export default function MenuPage() {
                 <span className="font-bold text-white">Total</span>
                 <span className="text-xl font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
               </div>
-              <button onClick={confirmOrder} disabled={submittingOrder} className="w-full bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 disabled:bg-gray-400 transition-colors">
-                {submittingOrder ? 'Submitting...' : 'Confirm Order'}
-              </button>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    setCart([]);
+                    sessionStorage.removeItem('cart');
+                    showToast({
+                      type: 'info',
+                      title: 'Cart Cleared',
+                      message: 'Your cart has been emptied.'
+                    });
+                  }} 
+                  className="flex-1 bg-gray-500 text-white py-3 rounded-xl font-semibold hover:bg-gray-600 transition-colors"
+                >
+                  Cancel Order
+                </button>
+                <button onClick={confirmOrder} disabled={submittingOrder} className="flex-2 bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 disabled:bg-gray-400 transition-colors">
+                  {submittingOrder ? 'Submitting...' : 'Confirm Order'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
